@@ -256,8 +256,8 @@
                         <i class="fa-solid fa-magnifying-glass"></i>
                     </div>
                     <h2 class="text-lg font-bold text-white mb-1">계정 찾기</h2>
-                    <p class="text-xs text-zinc-400 mb-6 text-center">가입 시 등록한 가명 또는 디스코드 닉네임을<br>정확히 입력해 주세요.</p>
-                    <input type="text" id="auth-lookup-input" placeholder="가명 또는 디스코드 닉네임" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm text-white mb-3 focus:outline-none focus:border-white">
+                    <p class="text-xs text-zinc-400 mb-6 text-center">가입 시 등록한 가명 또는 디스코드 ID을<br>정확히 입력해 주세요.</p>
+                    <input type="text" id="auth-lookup-input" placeholder="가명 또는 디스코드 ID" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm text-white mb-3 focus:outline-none focus:border-white">
                     <button onclick="lookupAccount()" class="w-full bg-white text-zinc-900 font-bold py-3 rounded-xl text-sm mb-2">계정 찾기</button>
                     <button onclick="toggleAuthMode()" class="text-xs text-zinc-500 hover:text-zinc-300 mt-2">신규 회원가입 하러 가기</button>
                 </div>
@@ -312,8 +312,8 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">디스코드 닉네임</label>
-                    <input type="text" id="signup-discord" placeholder="예: HongGD" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-white">
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">디스코드 ID</label>
+                    <input type="text" id="signup-discord" placeholder="예: hongildong123" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-white">
                 </div>
 
                 <div>
@@ -1337,7 +1337,7 @@
                 { data: merchants, error: mErr },
                 { data: sales, error: sErr }
             ] = await Promise.all([
-                sbClient.from('users').select('id, alias, discord, uid, pin, points, current_account_id, attendance_history, purchased_items, is_admin'),
+                sbClient.from('users').select('*'),
                 sbClient.from('merchants').select('*'),
                 sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false })
             ]);
@@ -2014,7 +2014,7 @@
             const query = input ? input.value.trim() : '';
 
             if (!query) {
-                showToast('가명 또는 디스코드 닉네임을 입력해 주세요.');
+                showToast('가명 또는 디스코드 ID을 입력해 주세요.');
                 return;
             }
 
@@ -2025,7 +2025,7 @@
                 return;
             }
             if (matches.length > 1) {
-                showToast('동일한 정보의 계정이 여러 개 있습니다. 디스코드 닉네임까지 정확히 입력해 주세요.');
+                showToast('동일한 정보의 계정이 여러 개 있습니다. 디스코드 ID까지 정확히 입력해 주세요.');
                 return;
             }
 
@@ -2134,7 +2134,7 @@
                 const uidTaken = (existing || []).some(u => u.uid === uid);
 
                 if (discordTaken) {
-                    showToast('이미 가입된 디스코드 닉네임입니다.');
+                    showToast('이미 가입된 디스코드 ID입니다.');
                     if (signupBtn) signupBtn.disabled = false;
                     return;
                 }
