@@ -1456,7 +1456,7 @@
                 return;
             }
 
-            user.accounts = (accounts || []).map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance }));
+            user.accounts = (accounts || []).map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance, isFrozen: a.is_frozen || false }));
 
             const accountIds = user.accounts.map(a => a.id);
             let transactions = [];
@@ -1724,6 +1724,12 @@
             const activeAcc = user ? (user.accounts || []).find(a => a.id === req.account_id) : null;
             if (!user || !activeAcc) {
                 hidePaymentRequestBanner();
+                return;
+            }
+
+            if (activeAcc.isFrozen) {
+                hidePaymentRequestBanner();
+                showToast('정지된 계좌라 결제를 승인할 수 없습니다.');
                 return;
             }
 
@@ -2128,12 +2134,6 @@
         async function verifyPinAndLogin() {
             const targetUser = state.users.find(u => u.id === state.selectedLoginUserId);
             if (targetUser && targetUser.pin === state.enteredPin) {
-                if (targetUser.isFrozen) {
-                    showToast('이용이 정지된 계정입니다. 관리자에게 문의해 주세요.');
-                    state.enteredPin = '';
-                    updatePinDots();
-                    return;
-                }
                 state.currentUserId = targetUser.id;
                 addKnownAccountId(targetUser.id);
                 showToast('계좌 정보를 불러오는 중입니다...');
@@ -2430,7 +2430,7 @@
                         .eq('id', acc.user_id)
                         .single();
                     if (!ownerErr && owner) {
-                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, balance: acc.balance };
+                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, balance: acc.balance, isFrozen: acc.is_frozen || false };
                     }
                 }
 
@@ -2469,7 +2469,7 @@
                     }
 
                     if (acc) {
-                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, balance: acc.balance };
+                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, balance: acc.balance, isFrozen: acc.is_frozen || false };
                     }
                 }
 
@@ -2537,6 +2537,11 @@
 
             if (!user || !activeAcc) return;
 
+            if (activeAcc.isFrozen) {
+                showToast('정지된 계좌입니다. 이체를 이용할 수 없습니다.');
+                return;
+            }
+
             if (activeAcc.balance < amount) {
                 showToast('계좌 잔액이 부족합니다.');
                 return;
@@ -2559,6 +2564,10 @@
             }
             if (match.accountId === activeAcc.id) {
                 showToast('본인의 같은 계좌로는 이체할 수 없습니다.');
+                return;
+            }
+            if (match.isFrozen) {
+                showToast('받는 분의 계좌가 정지되어 이체할 수 없습니다.');
                 return;
             }
 
@@ -3250,6 +3259,11 @@
                 return;
             }
 
+            if (customerAcc.is_frozen) {
+                showToast('고객의 계좌가 정지되어 결제할 수 없습니다.');
+                return;
+            }
+
             if (customerAcc.balance < amt) {
                 showToast('고객의 계좌 잔액이 부족하여 결제에 실패하였습니다.');
                 return;
@@ -3425,6 +3439,12 @@
 
             if (!targetAcc) {
                 showToast('등록된 정산 계좌(' + mch.accountNo + ')를 찾을 수 없어 정산할 수 없습니다.');
+                if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
+                return;
+            }
+
+            if (targetAcc.is_frozen) {
+                showToast('정산 계좌가 정지 상태라 정산할 수 없습니다. 관리자에게 문의해 주세요.');
                 if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
                 return;
             }
@@ -3678,7 +3698,7 @@
                 listEl.innerHTML = users.map(u => {
                     const acc = (accounts || []).find(a => a.id === u.current_account_id) || (accounts || []).find(a => a.user_id === u.id);
                     const balanceText = acc ? formatNumber(acc.balance) + '원' : '계좌 없음';
-                    const frozenBadge = u.is_frozen ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 ml-1.5">정지됨</span>' : '';
+                    const frozenBadge = acc && acc.is_frozen ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 ml-1.5">계좌정지</span>' : '';
                     return '<div class="border border-zinc-200 rounded-xl p-3">' +
                         '<div class="flex justify-between items-center mb-2">' +
                             '<div>' +
@@ -3695,7 +3715,9 @@
                             '</div>'
                         ) : '') +
                         '<div class="flex gap-1.5">' +
-                            '<button onclick="adminToggleFreeze(\'' + u.id + '\', ' + (!u.is_frozen) + ')" class="flex-1 ' + (u.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (u.is_frozen ? '정지 해제' : '계정 정지') + '</button>' +
+                            (acc ?
+                                '<button onclick="adminToggleAccountFreeze(\'' + acc.id + '\', ' + (!acc.is_frozen) + ')" class="flex-1 ' + (acc.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (acc.is_frozen ? '계좌 정지 해제' : '계좌 정지') + '</button>'
+                                : '<button disabled class="flex-1 bg-zinc-200 text-zinc-400 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed">계좌 없음</button>') +
                             '<button onclick="adminDeleteUser(\'' + u.id + '\', \'' + escapeHtml(u.alias).replace(/'/g, "\\'") + '\')" class="flex-1 bg-zinc-900 hover:bg-black text-white py-1.5 rounded-lg text-xs font-bold">계정 강제 삭제</button>' +
                         '</div>' +
                     '</div>';
@@ -3706,16 +3728,19 @@
             }
         }
 
-        async function adminToggleFreeze(userId, newFrozenState) {
+        async function adminToggleAccountFreeze(accountId, newFrozenState) {
             try {
-                await sbClient.from('users').update({ is_frozen: newFrozenState }).eq('id', userId);
-                showToast(newFrozenState ? '계정을 정지했습니다.' : '계정 정지를 해제했습니다.');
-                notifyUser(userId, newFrozenState ? '계정이 정지되었습니다' : '계정 정지가 해제되었습니다',
-                    newFrozenState ? '문의사항이 있으시면 관리자에게 연락해 주세요.' : '이제 다시 정상적으로 이용하실 수 있습니다.');
+                const { data: accData } = await sbClient.from('accounts').select('user_id, account_no').eq('id', accountId).single();
+                await sbClient.from('accounts').update({ is_frozen: newFrozenState }).eq('id', accountId);
+                showToast(newFrozenState ? '계좌를 정지했습니다.' : '계좌 정지를 해제했습니다.');
+                if (accData && accData.user_id) {
+                    notifyUser(accData.user_id, newFrozenState ? '계좌가 정지되었습니다' : '계좌 정지가 해제되었습니다',
+                        (accData.account_no || '') + (newFrozenState ? ' 계좌 이용이 정지되었습니다. 문의사항은 관리자에게 연락해 주세요.' : ' 계좌를 다시 정상적으로 이용하실 수 있습니다.'));
+                }
                 const searchInput = document.getElementById('admin-user-search');
                 renderAdminUserList(searchInput ? searchInput.value : '');
             } catch (err) {
-                console.error('계정 정지 처리 오류:', err);
+                console.error('계좌 정지 처리 오류:', err);
                 showToast('처리 중 오류가 발생했습니다.');
             }
         }
