@@ -1172,6 +1172,19 @@
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-zinc-900 flex items-center gap-2">
+                            고액 이체 알림
+                            <span id="admin-alert-badge" class="hidden bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                        </h3>
+                        <button onclick="renderAdminAlerts()" class="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5">
+                            <i class="fa-solid fa-rotate-right text-[10px]"></i> 새로고침
+                        </button>
+                    </div>
+                    <div id="admin-alert-list" class="space-y-2"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">가맹점 승인 대기</h3>
                     <div id="admin-merchant-pending-list" class="space-y-2"></div>
                 </div>
@@ -1402,7 +1415,8 @@
                 transactions: [],
                 attendanceHistory: u.attendance_history || {},
                 purchasedItems: u.purchased_items || [],
-                isAdmin: u.is_admin || false
+                isAdmin: u.is_admin || false,
+                isFrozen: u.is_frozen || false
             }));
 
             if (merchants && merchants.length) {
@@ -2114,6 +2128,12 @@
         async function verifyPinAndLogin() {
             const targetUser = state.users.find(u => u.id === state.selectedLoginUserId);
             if (targetUser && targetUser.pin === state.enteredPin) {
+                if (targetUser.isFrozen) {
+                    showToast('이용이 정지된 계정입니다. 관리자에게 문의해 주세요.');
+                    state.enteredPin = '';
+                    updatePinDots();
+                    return;
+                }
                 state.currentUserId = targetUser.id;
                 addKnownAccountId(targetUser.id);
                 showToast('계좌 정보를 불러오는 중입니다...');
@@ -2462,6 +2482,7 @@
 
         
         
+        const LARGE_TRANSFER_THRESHOLD = 500000;
         const TRANSFER_RATE_WINDOW_MINUTES = 5;
         const TRANSFER_RATE_MAX_RECIPIENTS = 3;
 
@@ -2623,6 +2644,17 @@
                 });
                 notifyUser(match.userId, user.alias + '님으로부터 입금', formatNumber(amount) + '원이 입금되었습니다.' + (memo ? ' "' + memo + '"' : ''));
                 notifyUser(user.id, match.alias + '님에게 이체 완료', formatNumber(amount) + '원을 이체했습니다.');
+
+                if (amount >= LARGE_TRANSFER_THRESHOLD) {
+                    sbClient.from('admin_alerts').insert({
+                        id: genId('alert'),
+                        type: 'large_transfer',
+                        message: user.alias + '님이 ' + match.alias + '님에게 ' + formatNumber(amount) + '원을 이체했습니다.',
+                        amount: amount,
+                        related_user_id: user.id,
+                        read: false
+                    }).then(() => {}, (err) => console.error('관리자 알림 생성 오류:', err));
+                }
             } catch (err) {
                 console.error('수신자 입금 반영 오류:', err);
                 showToast('상대방 계좌 입금 반영 중 오류가 발생했습니다. 관리자에게 문의해 주세요.');
@@ -3507,6 +3539,62 @@
             }
         }
 
+        async function renderAdminAlerts() {
+            const listEl = document.getElementById('admin-alert-list');
+            const badge = document.getElementById('admin-alert-badge');
+            if (!listEl) return;
+
+            listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
+
+            try {
+                const { data, error } = await sbClient
+                    .from('admin_alerts')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(30);
+
+                if (error) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">고액 이체 알림이 없습니다.</div>';
+                    if (badge) badge.classList.add('hidden');
+                    return;
+                }
+
+                const unreadCount = data.filter(a => !a.read).length;
+                if (badge) {
+                    if (unreadCount > 0) {
+                        badge.innerText = unreadCount > 99 ? '99+' : String(unreadCount);
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+
+                listEl.innerHTML = data.map(a => {
+                    const unreadDot = a.read ? '' : '<span class="w-2 h-2 bg-red-500 rounded-full inline-block mr-1.5 shrink-0"></span>';
+                    return '<div class="border border-zinc-200 rounded-xl p-3 flex justify-between items-center gap-2">' +
+                        '<div class="flex items-center min-w-0">' +
+                            unreadDot +
+                            '<div class="min-w-0">' +
+                                '<div class="text-xs font-bold text-zinc-900 truncate">' + escapeHtml(a.message) + '</div>' +
+                                '<div class="text-[10px] text-zinc-400 mt-0.5">' + formatRelativeDate(a.created_at) + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="text-sm font-extrabold text-amber-600 shrink-0">' + formatNumber(a.amount || 0) + '원</div>' +
+                    '</div>';
+                }).join('');
+
+                await sbClient.from('admin_alerts').update({ read: true }).eq('read', false);
+            } catch (err) {
+                console.error('관리자 알림 조회 오류:', err);
+                listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
         async function renderAdminPendingMerchants() {
             const listEl = document.getElementById('admin-merchant-pending-list');
             if (!listEl) return;
@@ -3568,7 +3656,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('users').select('id, alias, discord, uid, current_account_id');
+                let query = sbClient.from('users').select('id, alias, discord, uid, current_account_id, is_frozen');
                 if (search && search.trim()) {
                     query = query.or('alias.ilike.%' + search.trim() + '%,discord.ilike.%' + search.trim() + '%');
                 }
@@ -3590,26 +3678,66 @@
                 listEl.innerHTML = users.map(u => {
                     const acc = (accounts || []).find(a => a.id === u.current_account_id) || (accounts || []).find(a => a.user_id === u.id);
                     const balanceText = acc ? formatNumber(acc.balance) + '원' : '계좌 없음';
+                    const frozenBadge = u.is_frozen ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 ml-1.5">정지됨</span>' : '';
                     return '<div class="border border-zinc-200 rounded-xl p-3">' +
                         '<div class="flex justify-between items-center mb-2">' +
                             '<div>' +
-                                '<div class="text-xs font-bold text-zinc-900">' + escapeHtml(u.alias) + '</div>' +
+                                '<div class="text-xs font-bold text-zinc-900 flex items-center">' + escapeHtml(u.alias) + frozenBadge + '</div>' +
                                 '<div class="text-[10px] text-zinc-400">' + escapeHtml(u.discord) + ' | UID ' + escapeHtml(u.uid) + '</div>' +
                             '</div>' +
                             '<div class="text-xs font-bold text-zinc-700">' + balanceText + '</div>' +
                         '</div>' +
                         (acc ? (
-                            '<div class="flex gap-1.5">' +
+                            '<div class="flex gap-1.5 mb-1.5">' +
                                 '<input type="number" id="admin-amt-' + u.id + '" placeholder="금액" step="1000" class="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg p-2 text-xs focus:outline-none">' +
                                 '<button onclick="adminAdjustBalance(\'' + u.id + '\', \'' + acc.id + '\', 1)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 rounded-lg text-xs font-bold">지급</button>' +
                                 '<button onclick="adminAdjustBalance(\'' + u.id + '\', \'' + acc.id + '\', -1)" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-lg text-xs font-bold">차감</button>' +
                             '</div>'
                         ) : '') +
+                        '<div class="flex gap-1.5">' +
+                            '<button onclick="adminToggleFreeze(\'' + u.id + '\', ' + (!u.is_frozen) + ')" class="flex-1 ' + (u.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (u.is_frozen ? '정지 해제' : '계정 정지') + '</button>' +
+                            '<button onclick="adminDeleteUser(\'' + u.id + '\', \'' + escapeHtml(u.alias).replace(/'/g, "\\'") + '\')" class="flex-1 bg-zinc-900 hover:bg-black text-white py-1.5 rounded-lg text-xs font-bold">계정 강제 삭제</button>' +
+                        '</div>' +
                     '</div>';
                 }).join('');
             } catch (err) {
                 console.error('관리자 회원 조회 오류:', err);
                 listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        async function adminToggleFreeze(userId, newFrozenState) {
+            try {
+                await sbClient.from('users').update({ is_frozen: newFrozenState }).eq('id', userId);
+                showToast(newFrozenState ? '계정을 정지했습니다.' : '계정 정지를 해제했습니다.');
+                notifyUser(userId, newFrozenState ? '계정이 정지되었습니다' : '계정 정지가 해제되었습니다',
+                    newFrozenState ? '문의사항이 있으시면 관리자에게 연락해 주세요.' : '이제 다시 정상적으로 이용하실 수 있습니다.');
+                const searchInput = document.getElementById('admin-user-search');
+                renderAdminUserList(searchInput ? searchInput.value : '');
+            } catch (err) {
+                console.error('계정 정지 처리 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function adminDeleteUser(userId, alias) {
+            const confirmed = window.confirm('정말로 \'' + alias + '\' 계정을 완전히 삭제하시겠습니까?\n계좌, 거래내역, 알림 등 관련 데이터가 모두 함께 삭제되며 되돌릴 수 없습니다.');
+            if (!confirmed) return;
+
+            try {
+                const { error } = await sbClient.from('users').delete().eq('id', userId);
+                if (error) {
+                    console.error('계정 삭제 오류:', error);
+                    showToast('계정 삭제 중 오류가 발생했습니다.');
+                    return;
+                }
+                showToast('\'' + alias + '\' 계정이 삭제되었습니다.');
+                const searchInput = document.getElementById('admin-user-search');
+                renderAdminUserList(searchInput ? searchInput.value : '');
+                refreshServerStatus();
+            } catch (err) {
+                console.error('계정 삭제 오류:', err);
+                showToast('계정 삭제 중 오류가 발생했습니다.');
             }
         }
 
@@ -3815,6 +3943,7 @@
             }
             document.getElementById('admin-fullscreen').classList.remove('hidden');
             refreshServerStatus();
+            renderAdminAlerts();
             renderAdminPendingMerchants();
             renderAdminUserList('');
             renderAdminMerchantList('');
