@@ -1969,7 +1969,7 @@
             const knownIds = getKnownAccountIds();
             const knownUsers = state.users.filter(u => knownIds.includes(u.id));
 
-            if (!state.selectedLoginUserId || !knownUsers.some(u => u.id === state.selectedLoginUserId)) {
+            if (!state.selectedLoginUserId || !state.users.some(u => u.id === state.selectedLoginUserId)) {
                 state.selectedLoginUserId = knownUsers.length > 0 ? knownUsers[0].id : null;
             }
 
