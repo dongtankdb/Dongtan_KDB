@@ -2537,8 +2537,26 @@
 
             if (!user || !activeAcc) return;
 
+            let freshSenderAcc;
+            try {
+                const { data, error } = await sbClient.from('accounts').select('balance, is_frozen').eq('id', activeAcc.id).single();
+                if (error || !data) {
+                    showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
+                    return;
+                }
+                freshSenderAcc = data;
+            } catch (err) {
+                console.error('보내는 계좌 상태 확인 오류:', err);
+                showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
+                return;
+            }
+
+            activeAcc.isFrozen = freshSenderAcc.is_frozen || false;
+            activeAcc.balance = freshSenderAcc.balance;
+
             if (activeAcc.isFrozen) {
                 showToast('정지된 계좌입니다. 이체를 이용할 수 없습니다.');
+                renderApp();
                 return;
             }
 
@@ -2609,17 +2627,51 @@
             const activeAcc = getActiveAccount();
             if (!user || !activeAcc) return;
 
-            if (activeAcc.balance < amount) {
-                showToast('계좌 잔액이 부족합니다.');
-                closeModal('modal-transfer-confirm');
-                return;
-            }
-
             const confirmBtn = document.getElementById('transfer-confirm-btn');
             if (confirmBtn) {
                 confirmBtn.disabled = true;
-                confirmBtn.innerText = '이체 처리 중...';
+                confirmBtn.innerText = '확인 중...';
             }
+
+            try {
+                const { data: freshSenderAcc, error: senderErr } = await sbClient.from('accounts').select('balance, is_frozen').eq('id', activeAcc.id).single();
+                if (senderErr || !freshSenderAcc) {
+                    showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
+                    return;
+                }
+                activeAcc.isFrozen = freshSenderAcc.is_frozen || false;
+                activeAcc.balance = freshSenderAcc.balance;
+
+                if (activeAcc.isFrozen) {
+                    showToast('정지된 계좌입니다. 이체를 이용할 수 없습니다.');
+                    closeModal('modal-transfer-confirm');
+                    renderApp();
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
+                    return;
+                }
+
+                const { data: freshRecipientAcc } = await sbClient.from('accounts').select('is_frozen').eq('id', match.accountId).single();
+                if (freshRecipientAcc && freshRecipientAcc.is_frozen) {
+                    showToast('받는 분의 계좌가 정지되어 이체할 수 없습니다.');
+                    closeModal('modal-transfer-confirm');
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
+                    return;
+                }
+            } catch (err) {
+                console.error('이체 최종 확인 오류:', err);
+                showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
+                return;
+            }
+
+            if (activeAcc.balance < amount) {
+                showToast('계좌 잔액이 부족합니다.');
+                closeModal('modal-transfer-confirm');
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
+                return;
+            }
+            if (confirmBtn) confirmBtn.innerText = '이체 처리 중...';
 
             
             activeAcc.balance -= amount;
