@@ -205,6 +205,20 @@
 <body>
 
     <div id="app-container">
+        <div id="app-update-banner" class="hidden absolute top-0 left-0 right-0 z-[200] p-3">
+            <div class="bg-zinc-900 text-white rounded-2xl shadow-2xl p-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-arrow-rotate-right text-sm"></i>
+                    </div>
+                    <p class="text-xs font-semibold leading-relaxed">새로운 업데이트가 배포되었습니다.<br>새로고침하면 최신 버전으로 이용하실 수 있어요.</p>
+                </div>
+                <button onclick="location.reload()" class="w-full bg-white text-zinc-900 font-bold py-2.5 rounded-xl text-xs">
+                    지금 새로고침
+                </button>
+            </div>
+        </div>
+
         <div id="toast-container" class="absolute top-0 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-[380px] pointer-events-none flex flex-col gap-2 pt-3"></div>
 
         
@@ -1488,6 +1502,8 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
+            startVersionCheckPolling();
+
             showToast('서버에서 데이터를 불러오는 중입니다...');
             await loadAppData();
 
@@ -1530,6 +1546,41 @@
         
         function genId(prefix) {
             return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        }
+
+        const APP_BUILD_VERSION = '2026-01-15-01';
+        let versionCheckTimer = null;
+
+        function extractBuildVersion(html) {
+            const match = html.match(/APP_BUILD_VERSION\s*=\s*'([^']+)'/);
+            return match ? match[1] : null;
+        }
+
+        async function checkForNewVersion() {
+            try {
+                const res = await fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' });
+                if (!res.ok) return;
+                const html = await res.text();
+                const liveVersion = extractBuildVersion(html);
+                if (liveVersion && liveVersion !== APP_BUILD_VERSION) {
+                    const banner = document.getElementById('app-update-banner');
+                    if (banner) banner.classList.remove('hidden');
+                    if (versionCheckTimer) {
+                        clearInterval(versionCheckTimer);
+                        versionCheckTimer = null;
+                    }
+                }
+            } catch (err) {
+                console.error('버전 확인 오류:', err);
+            }
+        }
+
+        function startVersionCheckPolling() {
+            checkForNewVersion();
+            versionCheckTimer = setInterval(checkForNewVersion, 30000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') checkForNewVersion();
+            });
         }
 
         async function notifyUser(userId, title, body) {
