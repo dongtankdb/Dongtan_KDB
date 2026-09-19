@@ -633,6 +633,15 @@
                         </div>
                         <i class="fa-solid fa-chevron-right text-zinc-300 text-xs"></i>
                     </div>
+                    <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openAutoTransferModal()">
+                        <div class="flex items-center gap-3 text-xs font-medium text-zinc-700">
+                            <i class="fa-solid fa-rotate text-zinc-400 w-4"></i> 자동이체 관리
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="auto-transfer-count-badge" class="hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-900 text-white"></span>
+                            <i class="fa-solid fa-chevron-right text-zinc-300 text-xs"></i>
+                        </div>
+                    </div>
                     <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openMerchantDashboard()">
                         <div class="flex items-center gap-3 text-xs font-medium text-zinc-700">
                             <i class="fa-solid fa-store text-zinc-400 w-4"></i> 가맹점 POS 결제
@@ -854,6 +863,101 @@
 
                     <button id="deposit-submit-btn" onclick="submitTopupRequest()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         충전 요청 보내기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-auto-transfer" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
+            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85%] flex flex-col">
+                <div class="flex justify-between items-center mb-1">
+                    <h3 class="font-bold text-base text-zinc-900">자동이체 관리</h3>
+                    <button onclick="closeModal('modal-auto-transfer')" class="text-zinc-400 hover:text-zinc-600 p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <p class="text-[11px] text-zinc-400 mb-4">등록한 주기에 맞춰 앱 접속 시 자동으로 이체가 실행됩니다.</p>
+
+                <div id="auto-transfer-list" class="flex-1 overflow-y-auto space-y-2 -mx-1 px-1"></div>
+
+                <button onclick="openAutoTransferForm()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md mt-4 shrink-0">
+                    <i class="fa-solid fa-plus mr-1.5"></i> 새 자동이체 등록
+                </button>
+            </div>
+        </div>
+
+        <div id="modal-auto-transfer-form" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[85] flex items-end justify-center">
+            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200 max-h-[90%] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-base text-zinc-900">자동이체 등록</h3>
+                    <button onclick="closeModal('modal-auto-transfer-form')" class="text-zinc-400 hover:text-zinc-600 p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="bg-zinc-50 border border-zinc-200 rounded-xl p-3">
+                        <div class="text-[10px] font-semibold text-zinc-400 mb-0.5">출금 계좌</div>
+                        <div id="at-from-account" class="text-xs font-bold text-zinc-900">-</div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">받는 분 (닉네임 또는 계좌번호)</label>
+                        <input type="text" id="at-recipient" placeholder="예: 홍길동 또는 110-384-910283"
+                            class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">이체 금액</label>
+                        <input type="number" id="at-amount" inputmode="numeric" placeholder="0"
+                            class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">이체 주기</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" id="at-cycle-weekly" onclick="setAutoTransferCycle('weekly')"
+                                class="py-2.5 rounded-xl text-xs font-bold border transition-all bg-zinc-900 text-white border-zinc-900">매주</button>
+                            <button type="button" id="at-cycle-monthly" onclick="setAutoTransferCycle('monthly')"
+                                class="py-2.5 rounded-xl text-xs font-bold border transition-all bg-white text-zinc-600 border-zinc-200">매월</button>
+                        </div>
+                    </div>
+
+                    <div id="at-weekly-wrap">
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">이체 요일</label>
+                        <select id="at-day-of-week" onchange="updateAutoTransferPreview()" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
+                            <option value="1">매주 월요일</option>
+                            <option value="2">매주 화요일</option>
+                            <option value="3">매주 수요일</option>
+                            <option value="4">매주 목요일</option>
+                            <option value="5">매주 금요일</option>
+                            <option value="6">매주 토요일</option>
+                            <option value="0">매주 일요일</option>
+                        </select>
+                    </div>
+
+                    <div id="at-monthly-wrap" class="hidden">
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">이체 날짜</label>
+                        <select id="at-day-of-month" onchange="updateAutoTransferPreview()" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold focus:outline-none"></select>
+                        <p class="text-[10px] text-zinc-400 mt-1">해당 날짜가 없는 달(예: 2월 31일)에는 그 달의 마지막 날에 이체됩니다.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">메모 (선택)</label>
+                        <input type="text" id="at-memo" maxlength="30" placeholder="예: 월세, 구독료"
+                            class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-start gap-2">
+                        <i class="fa-solid fa-circle-info text-blue-500 text-xs mt-0.5"></i>
+                        <div class="text-[11px] text-blue-900 leading-relaxed">
+                            첫 이체 예정일: <span id="at-preview-date" class="font-bold">-</span><br>
+                            잔액이 부족하면 해당 회차는 건너뛰고 알림이 발송됩니다.
+                        </div>
+                    </div>
+
+                    <button id="at-submit-btn" onclick="submitAutoTransfer()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md mt-2">
+                        자동이체 등록
                     </button>
                 </div>
             </div>
@@ -1328,7 +1432,6 @@
                 name: 'KDB 성수 디저트 카페',
                 category: '카페/디저트',
                 bizNo: '128-81-04921',
-                pin: '1234',
                 accountNo: '110-384-910283',
                 unsettledBalance: 0,
                 totalSales: 0,
@@ -1388,7 +1491,6 @@
                         alias: user.alias,
                         discord: user.discord,
                         uid: user.uid,
-                        pin: user.pin,
                         points: user.points || 0,
                         current_account_id: user.currentAccountId || null,
                         attendance_history: user.attendanceHistory || {},
@@ -1430,7 +1532,6 @@
                         name: m.name,
                         category: m.category,
                         biz_no: m.bizNo,
-                        pin: m.pin,
                         account_no: m.accountNo,
                         unsettled_balance: m.unsettledBalance || 0,
                         total_sales: m.totalSales || 0,
@@ -1467,8 +1568,8 @@
                 { data: merchants, error: mErr },
                 { data: sales, error: sErr }
             ] = await Promise.all([
-                sbClient.from('users').select('*'),
-                sbClient.from('merchants').select('*'),
+                sbClient.from('users_public').select('*'),
+                sbClient.from('merchants_public').select('*'),
                 sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false })
             ]);
 
@@ -1488,7 +1589,6 @@
                 alias: u.alias,
                 discord: u.discord,
                 uid: u.uid,
-                pin: u.pin,
                 points: u.points || 0,
                 currentAccountId: u.current_account_id,
                 accounts: [],
@@ -1505,7 +1605,6 @@
                     name: m.name,
                     category: m.category,
                     bizNo: m.biz_no,
-                    pin: m.pin,
                     accountNo: m.account_no,
                     unsettledBalance: m.unsettled_balance || 0,
                     totalSales: m.total_sales || 0,
@@ -2299,22 +2398,60 @@
         }
 
         async function verifyPinAndLogin() {
-            const targetUser = state.users.find(u => u.id === state.selectedLoginUserId);
-            if (targetUser && targetUser.pin === state.enteredPin) {
-                state.currentUserId = targetUser.id;
-                addKnownAccountId(targetUser.id);
-                showToast('계좌 정보를 불러오는 중입니다...');
-                await loadUserFinancialData(targetUser.id);
-                saveAppData();
-                subscribeToRealtimeUpdates();
-                document.getElementById('auth-screen').classList.add('hidden-auth');
-                renderApp();
-                showToast(targetUser.alias + '님 환영합니다!');
-            } else {
+            const targetUserId = state.selectedLoginUserId;
+            if (!targetUserId) return;
+
+            let row;
+            try {
+                const { data, error } = await sbClient.rpc('verify_user_login', {
+                    p_user_id: targetUserId,
+                    p_pin: state.enteredPin
+                });
+                if (error) {
+                    console.error('로그인 확인 오류:', error);
+                    showToast('로그인 확인 중 오류가 발생했습니다.');
+                    return;
+                }
+                row = data && data[0];
+            } catch (err) {
+                console.error('로그인 확인 오류:', err);
+                showToast('로그인 확인 중 오류가 발생했습니다.');
+                return;
+            }
+
+            if (!row) {
                 showToast('PIN 번호가 일치하지 않습니다.');
                 state.enteredPin = '';
                 updatePinDots();
+                return;
             }
+
+            
+            let localUser = state.users.find(u => u.id === row.id);
+            if (!localUser) {
+                localUser = { id: row.id, accounts: [], transactions: [] };
+                state.users.push(localUser);
+            }
+            localUser.alias = row.alias;
+            localUser.discord = row.discord;
+            localUser.uid = row.uid;
+            localUser.points = row.points || 0;
+            localUser.currentAccountId = row.current_account_id;
+            localUser.attendanceHistory = row.attendance_history || {};
+            localUser.purchasedItems = row.purchased_items || [];
+            localUser.isAdmin = row.is_admin || false;
+            localUser.isFrozen = row.is_frozen || false;
+
+            state.currentUserId = row.id;
+            addKnownAccountId(row.id);
+            showToast('계좌 정보를 불러오는 중입니다...');
+            await loadUserFinancialData(row.id);
+            saveAppData();
+            subscribeToRealtimeUpdates();
+            document.getElementById('auth-screen').classList.add('hidden-auth');
+            renderApp();
+            showToast(row.alias + '님 환영합니다!');
+            runDueAutoTransfers();
         }
 
         async function executeSignup() {
@@ -2341,42 +2478,34 @@
             const signupBtn = document.getElementById('signup-submit-btn');
             if (signupBtn) signupBtn.disabled = true;
 
+            let newUserId;
             try {
-                const { data: existing, error: checkErr } = await sbClient
-                    .from('users')
-                    .select('id, discord, uid')
-                    .or('discord.eq.' + discord + ',uid.eq.' + uid);
-
-                if (checkErr) {
-                    console.error('중복 체크 오류:', checkErr);
-                    showToast('가입 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                const { data, error } = await sbClient.rpc('signup_user', {
+                    p_alias: alias, p_discord: discord, p_uid: uid, p_pin: pin
+                });
+                if (error) {
+                    const msg = error.message || '';
+                    if (msg.includes('discord_taken')) {
+                        showToast('이미 가입된 디스코드 ID입니다.');
+                    } else if (msg.includes('uid_taken')) {
+                        showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
+                    } else {
+                        console.error('회원가입 오류:', error);
+                        showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                    }
                     if (signupBtn) signupBtn.disabled = false;
                     return;
                 }
-
-                const discordTaken = (existing || []).some(u => u.discord === discord);
-                const uidTaken = (existing || []).some(u => u.uid === uid);
-
-                if (discordTaken) {
-                    showToast('이미 가입된 디스코드 ID입니다.');
-                    if (signupBtn) signupBtn.disabled = false;
-                    return;
-                }
-                if (uidTaken) {
-                    showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
-                    if (signupBtn) signupBtn.disabled = false;
-                    return;
-                }
+                newUserId = data;
             } catch (err) {
-                console.error('중복 체크 오류:', err);
-                showToast('가입 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                console.error('회원가입 오류:', err);
+                showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 if (signupBtn) signupBtn.disabled = false;
                 return;
             }
 
             if (signupBtn) signupBtn.disabled = false;
 
-            const newUserId = genId('usr');
             const newAccountId = genId('acc');
             const newAccNo = '110-' + Math.floor(100 + Math.random() * 900) + '-' + Math.floor(100000 + Math.random() * 900000);
 
@@ -2385,7 +2514,6 @@
                 alias: alias,
                 discord: discord,
                 uid: uid,
-                pin: pin,
                 points: 1000,
                 currentAccountId: newAccountId,
                 accounts: [
@@ -2592,7 +2720,7 @@
                 if (accByNo && accByNo.length) {
                     const acc = accByNo[0];
                     const { data: owner, error: ownerErr } = await sbClient
-                        .from('users')
+                        .from('users_public')
                         .select('id, alias')
                         .eq('id', acc.user_id)
                         .single();
@@ -2602,7 +2730,7 @@
                 }
 
                 const { data: nameMatches, error: nameErr } = await sbClient
-                    .from('users')
+                    .from('users_public')
                     .select('id, alias, current_account_id')
                     .eq('alias', query);
 
@@ -3207,30 +3335,65 @@
             });
         }
 
-        function verifyMerchantPinLogin() {
-            const targetMch = state.merchants.find(m => m.id === state.selectedMerchantLoginId);
-            if (targetMch && targetMch.pin === state.enteredMerchantPin) {
-                if (targetMch.status === 'pending') {
-                    showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
-                    state.enteredMerchantPin = '';
-                    updateMerchantPinDots();
+        async function verifyMerchantPinLogin() {
+            const targetMchId = state.selectedMerchantLoginId;
+            if (!targetMchId) return;
+
+            let row;
+            try {
+                const { data, error } = await sbClient.rpc('verify_merchant_login', {
+                    p_merchant_id: targetMchId,
+                    p_pin: state.enteredMerchantPin
+                });
+                if (error) {
+                    console.error('가맹점 로그인 확인 오류:', error);
+                    showToast('로그인 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                if (targetMch.status === 'rejected') {
-                    showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
-                    state.enteredMerchantPin = '';
-                    updateMerchantPinDots();
-                    return;
-                }
-                state.currentMerchantId = targetMch.id;
-                saveSession();
-                showToast('\'' + targetMch.name + '\' 가맹점으로 접속되었습니다.');
-                renderMerchantDashboard();
-            } else {
+                row = data && data[0];
+            } catch (err) {
+                console.error('가맹점 로그인 확인 오류:', err);
+                showToast('로그인 확인 중 오류가 발생했습니다.');
+                return;
+            }
+
+            if (!row) {
                 showToast('가맹점 보안 PIN 번호가 일치하지 않습니다.');
                 state.enteredMerchantPin = '';
                 updateMerchantPinDots();
+                return;
             }
+
+            let localMch = state.merchants.find(m => m.id === row.id);
+            if (!localMch) {
+                localMch = { id: row.id, salesHistory: [] };
+                state.merchants.push(localMch);
+            }
+            localMch.name = row.name;
+            localMch.category = row.category;
+            localMch.bizNo = row.biz_no;
+            localMch.accountNo = row.account_no;
+            localMch.unsettledBalance = row.unsettled_balance || 0;
+            localMch.totalSales = row.total_sales || 0;
+            localMch.status = row.status;
+
+            if (localMch.status === 'pending') {
+                showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
+                state.enteredMerchantPin = '';
+                updateMerchantPinDots();
+                return;
+            }
+            if (localMch.status === 'rejected') {
+                showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
+                state.enteredMerchantPin = '';
+                updateMerchantPinDots();
+                return;
+            }
+
+            state.currentMerchantId = localMch.id;
+            saveSession();
+            showToast('\'' + localMch.name + '\' 가맹점으로 접속되었습니다.');
+            renderMerchantDashboard();
         }
 
         async function executeMerchantSignup() {
@@ -3254,26 +3417,25 @@
             const mchSignupBtn = document.getElementById('mch-signup-submit-btn');
             if (mchSignupBtn) mchSignupBtn.disabled = true;
 
+            let newMchId;
             try {
-                const { data: existing, error: checkErr } = await sbClient
-                    .from('merchants')
-                    .select('id, biz_no')
-                    .eq('biz_no', biz);
-
-                if (checkErr) {
-                    console.error('중복 체크 오류:', checkErr);
-                    showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                const { data, error } = await sbClient.rpc('signup_merchant', {
+                    p_name: name, p_category: category, p_biz_no: biz, p_account_no: acc, p_pin: pin
+                });
+                if (error) {
+                    const msg = error.message || '';
+                    if (msg.includes('biz_no_taken')) {
+                        showToast('이미 등록된 사업자번호입니다.');
+                    } else {
+                        console.error('가맹점 가입 오류:', error);
+                        showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                    }
                     if (mchSignupBtn) mchSignupBtn.disabled = false;
                     return;
                 }
-
-                if (existing && existing.length > 0) {
-                    showToast('이미 등록된 사업자번호입니다.');
-                    if (mchSignupBtn) mchSignupBtn.disabled = false;
-                    return;
-                }
+                newMchId = data;
             } catch (err) {
-                console.error('중복 체크 오류:', err);
+                console.error('가맹점 가입 오류:', err);
                 showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 if (mchSignupBtn) mchSignupBtn.disabled = false;
                 return;
@@ -3282,11 +3444,10 @@
             if (mchSignupBtn) mchSignupBtn.disabled = false;
 
             const newMerchant = {
-                id: genId('mch'),
+                id: newMchId,
                 name: name,
                 category: category,
                 bizNo: biz,
-                pin: pin,
                 accountNo: acc,
                 unsettledBalance: 0,
                 totalSales: 0,
@@ -3467,7 +3628,7 @@
             let customerUser, customerAcc;
             try {
                 const [{ data: uData, error: uErr }, { data: aData, error: aErr }] = await Promise.all([
-                    sbClient.from('users').select('*').eq('id', codeRow.user_id).single(),
+                    sbClient.from('users_public').select('*').eq('id', codeRow.user_id).single(),
                     sbClient.from('accounts').select('*').eq('id', codeRow.account_id).single()
                 ]);
                 if (uErr || aErr || !uData || !aData) {
@@ -3872,7 +4033,7 @@
                 }
 
                 const userIds = [...new Set(pending.map(r => r.user_id))];
-                const { data: users } = await sbClient.from('users').select('id, alias, discord').in('id', userIds);
+                const { data: users } = await sbClient.from('users_public').select('id, alias, discord').in('id', userIds);
 
                 listEl.innerHTML = pending.map(r => {
                     const u = (users || []).find(x => x.id === r.user_id);
@@ -3957,7 +4118,7 @@
 
             try {
                 const { data: pending, error } = await sbClient
-                    .from('merchants')
+                    .from('merchants_public')
                     .select('*')
                     .eq('status', 'pending')
                     .order('created_at', { ascending: false });
@@ -4012,7 +4173,7 @@
             modal.classList.remove('hidden');
 
             try {
-                const { data: user, error: uErr } = await sbClient.from('users').select('*').eq('id', userId).single();
+                const { data: user, error: uErr } = await sbClient.from('users_public').select('*').eq('id', userId).single();
                 if (uErr || !user) {
                     body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">회원 정보를 불러오지 못했습니다.</div>';
                     return;
@@ -4020,6 +4181,12 @@
 
                 const { data: accounts } = await sbClient.from('accounts').select('*').eq('user_id', userId);
                 const accountIds = (accounts || []).map(a => a.id);
+
+                const { data: autoTransfers } = await sbClient
+                    .from('auto_transfers')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('next_run_date', { ascending: true });
 
                 let transactions = [];
                 if (accountIds.length) {
@@ -4061,6 +4228,33 @@
 
                 const adminBadge = user.is_admin ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 ml-1.5">관리자</span>' : '';
 
+                const autoTransferHtml = (autoTransfers && autoTransfers.length) ? autoTransfers.map(row => {
+                    const paused = !row.active;
+                    const failNote = (row.fail_count || 0) > 0 && row.last_result && row.last_result !== '성공'
+                        ? '<div class="text-[10px] text-red-500 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>최근 실패: ' + escapeHtml(row.last_result) + '</div>'
+                        : '';
+                    return '<div class="border border-zinc-200 rounded-xl p-3 mb-2">' +
+                        '<div class="flex justify-between items-start">' +
+                            '<div class="min-w-0">' +
+                                '<div class="flex items-center gap-1.5 flex-wrap">' +
+                                    '<span class="text-xs font-bold text-zinc-900 truncate">→ ' + escapeHtml(row.to_alias || '') + '</span>' +
+                                    '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ' + (paused ? 'bg-zinc-100 text-zinc-500' : 'bg-emerald-50 text-emerald-700') + '">' +
+                                        (paused ? '일시정지' : '진행중') +
+                                    '</span>' +
+                                '</div>' +
+                                '<div class="text-[10px] text-zinc-400 font-mono mt-0.5">' + escapeHtml(row.to_account_no || '') + '</div>' +
+                                (row.memo ? '<div class="text-[10px] text-zinc-500 mt-1 italic">"' + escapeHtml(row.memo) + '"</div>' : '') +
+                                failNote +
+                            '</div>' +
+                            '<div class="text-right shrink-0">' +
+                                '<div class="text-sm font-extrabold text-zinc-900">' + formatNumber(row.amount) + '<span class="text-[10px] font-bold ml-0.5">원</span></div>' +
+                                '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(atCycleLabel(row)) + '</div>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="text-[10px] text-zinc-500 mt-2 pt-2 border-t border-zinc-100">다음 이체일 <span class="font-bold text-zinc-700">' + escapeHtml(atPrettyDate(row.next_run_date)) + '</span></div>' +
+                    '</div>';
+                }).join('') : '<div class="text-xs text-zinc-400 mb-2">등록된 자동이체가 없습니다.</div>';
+
                 body.innerHTML =
                     '<div class="flex items-center gap-3 mb-4">' +
                         '<div class="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center text-white font-bold text-lg">' + escapeHtml(user.alias.charAt(0)) + '</div>' +
@@ -4081,6 +4275,8 @@
                     '</div>' +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2">계좌 목록</h4>' +
                     accountsHtml +
+                    '<h4 class="font-bold text-xs text-zinc-800 mb-2 mt-4">자동이체 설정</h4>' +
+                    autoTransferHtml +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2 mt-4">최근 거래내역 (최대 30건)</h4>' +
                     '<div class="border border-zinc-200 rounded-xl p-3">' + txHtml + '</div>';
             } catch (err) {
@@ -4101,7 +4297,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('users').select('id, alias, discord, uid, current_account_id, is_frozen');
+                let query = sbClient.from('users_public').select('id, alias, discord, uid, current_account_id, is_frozen');
                 if (search && search.trim()) {
                     query = query.or('alias.ilike.%' + search.trim() + '%,discord.ilike.%' + search.trim() + '%');
                 }
@@ -4245,7 +4441,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('merchants').select('*');
+                let query = sbClient.from('merchants_public').select('*');
                 if (search && search.trim()) {
                     query = query.ilike('name', '%' + search.trim() + '%');
                 }
@@ -4347,9 +4543,9 @@
                     { count: pendingPaymentCount, error: ppErr },
                     { data: feeRows, error: feeErr }
                 ] = await Promise.all([
-                    sbClient.from('users').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+                    sbClient.from('users_public').select('id', { count: 'exact', head: true }),
+                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }),
+                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('transactions').select('id', { count: 'exact', head: true }),
                     sbClient.from('payment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('merchant_sales').select('fee_amount')
@@ -4432,6 +4628,532 @@
                 startPayCodeAutoRefresh();
             } else {
                 stopPayCodeAutoRefresh();
+            }
+        }
+
+        /* ==================== 자동이체 (주/월 정기이체) ==================== */
+
+        const AUTO_TRANSFER_MAX_CATCHUP = 6;
+        const AT_WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+
+        state.autoTransfers = [];
+        state.autoTransferCycle = 'weekly';
+
+        function atFormatDate(d) {
+            return d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                String(d.getDate()).padStart(2, '0');
+        }
+
+        function atParseDate(str) {
+            const parts = String(str).split('-').map(Number);
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+
+        function atToday() {
+            return atFormatDate(new Date());
+        }
+
+        function atPrettyDate(str) {
+            const d = atParseDate(str);
+            return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + AT_WEEKDAY_LABELS[d.getDay()] + ')';
+        }
+
+        function atAddWeeks(dateStr, n) {
+            const d = atParseDate(dateStr);
+            d.setDate(d.getDate() + 7 * n);
+            return atFormatDate(d);
+        }
+
+        
+        function atAddMonths(dateStr, anchorDay) {
+            const d = atParseDate(dateStr);
+            const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+            const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+            next.setDate(Math.min(anchorDay, lastDay));
+            return atFormatDate(next);
+        }
+
+        function atNextRunDate(row) {
+            if (row.cycle === 'weekly') return atAddWeeks(row.next_run_date, 1);
+            return atAddMonths(row.next_run_date, row.day_of_month || atParseDate(row.next_run_date).getDate());
+        }
+
+        
+        function atFirstRunWeekly(dow) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let diff = (dow - today.getDay() + 7) % 7;
+            if (diff === 0) diff = 7;
+            const d = new Date(today);
+            d.setDate(d.getDate() + diff);
+            return atFormatDate(d);
+        }
+
+        function atFirstRunMonthly(day) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            const target = Math.min(day, lastDay);
+            if (target > today.getDate()) {
+                return atFormatDate(new Date(today.getFullYear(), today.getMonth(), target));
+            }
+            return atAddMonths(atFormatDate(new Date(today.getFullYear(), today.getMonth(), target)), day);
+        }
+
+        function atCycleLabel(row) {
+            if (row.cycle === 'weekly') return '매주 ' + AT_WEEKDAY_LABELS[row.day_of_week] + '요일';
+            return '매월 ' + row.day_of_month + '일';
+        }
+
+        
+        async function loadAutoTransfers() {
+            const user = getCurrentUser();
+            if (!user) return;
+            try {
+                const { data, error } = await sbClient
+                    .from('auto_transfers')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('next_run_date', { ascending: true });
+                if (error) {
+                    console.error('자동이체 조회 오류:', error);
+                    return;
+                }
+                state.autoTransfers = data || [];
+                renderAutoTransferBadge();
+            } catch (err) {
+                console.error('자동이체 조회 오류:', err);
+            }
+        }
+
+        function renderAutoTransferBadge() {
+            const badge = document.getElementById('auto-transfer-count-badge');
+            if (!badge) return;
+            const activeCount = state.autoTransfers.filter(r => r.active).length;
+            if (activeCount > 0) {
+                badge.innerText = String(activeCount);
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        async function openAutoTransferModal() {
+            const listEl = document.getElementById('auto-transfer-list');
+            if (listEl) listEl.innerHTML = '<div class="text-center py-8 text-xs text-zinc-400">불러오는 중...</div>';
+            openModal('modal-auto-transfer');
+            await loadAutoTransfers();
+            renderAutoTransferList();
+        }
+
+        function renderAutoTransferList() {
+            const listEl = document.getElementById('auto-transfer-list');
+            if (!listEl) return;
+
+            if (!state.autoTransfers.length) {
+                listEl.innerHTML =
+                    '<div class="text-center py-10">' +
+                        '<i class="fa-solid fa-rotate text-zinc-200 text-3xl mb-3"></i>' +
+                        '<p class="text-xs text-zinc-400">등록된 자동이체가 없습니다.</p>' +
+                    '</div>';
+                renderAutoTransferBadge();
+                return;
+            }
+
+            listEl.innerHTML = state.autoTransfers.map(row => {
+                const paused = !row.active;
+                const failNote = (row.fail_count || 0) > 0 && row.last_result && row.last_result !== '성공'
+                    ? '<div class="text-[10px] text-red-500 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>최근 실패: ' + escapeHtml(row.last_result) + '</div>'
+                    : '';
+
+                return '<div class="bg-white border ' + (paused ? 'border-zinc-200 opacity-60' : 'border-zinc-200') + ' rounded-2xl p-3.5 shadow-sm">' +
+                    '<div class="flex items-start justify-between gap-2">' +
+                        '<div class="min-w-0">' +
+                            '<div class="flex items-center gap-1.5 flex-wrap">' +
+                                '<span class="text-xs font-bold text-zinc-900 truncate">' + escapeHtml(row.to_alias || '') + '</span>' +
+                                '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ' + (paused ? 'bg-zinc-100 text-zinc-500' : 'bg-emerald-50 text-emerald-700') + '">' +
+                                    (paused ? '일시정지' : '진행중') +
+                                '</span>' +
+                            '</div>' +
+                            '<div class="text-[10px] text-zinc-400 font-mono mt-0.5">' + escapeHtml(row.to_account_no || '') + '</div>' +
+                            (row.memo ? '<div class="text-[10px] text-zinc-500 mt-1 italic">"' + escapeHtml(row.memo) + '"</div>' : '') +
+                            failNote +
+                        '</div>' +
+                        '<div class="text-right shrink-0">' +
+                            '<div class="text-sm font-extrabold text-zinc-900">' + formatNumber(row.amount) + '<span class="text-[10px] font-bold ml-0.5">원</span></div>' +
+                            '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(atCycleLabel(row)) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-100">' +
+                        '<div class="text-[10px] text-zinc-500">다음 이체일 <span class="font-bold text-zinc-700">' + escapeHtml(atPrettyDate(row.next_run_date)) + '</span></div>' +
+                        '<div class="flex gap-1.5">' +
+                            '<button onclick="toggleAutoTransfer(\'' + row.id + '\')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold ' + (paused ? 'bg-zinc-900 text-white hover:bg-black' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200') + '">' +
+                                (paused ? '재개' : '일시정지') +
+                            '</button>' +
+                            '<button onclick="deleteAutoTransfer(\'' + row.id + '\')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-50 text-red-600 hover:bg-red-100">해지</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            renderAutoTransferBadge();
+        }
+
+        
+        function setAutoTransferCycle(cycle) {
+            state.autoTransferCycle = cycle;
+            const weeklyBtn = document.getElementById('at-cycle-weekly');
+            const monthlyBtn = document.getElementById('at-cycle-monthly');
+            const onCls = 'py-2.5 rounded-xl text-xs font-bold border transition-all bg-zinc-900 text-white border-zinc-900';
+            const offCls = 'py-2.5 rounded-xl text-xs font-bold border transition-all bg-white text-zinc-600 border-zinc-200';
+
+            if (weeklyBtn) weeklyBtn.className = cycle === 'weekly' ? onCls : offCls;
+            if (monthlyBtn) monthlyBtn.className = cycle === 'monthly' ? onCls : offCls;
+
+            document.getElementById('at-weekly-wrap').classList.toggle('hidden', cycle !== 'weekly');
+            document.getElementById('at-monthly-wrap').classList.toggle('hidden', cycle !== 'monthly');
+            updateAutoTransferPreview();
+        }
+
+        function updateAutoTransferPreview() {
+            const el = document.getElementById('at-preview-date');
+            if (!el) return;
+            const dateStr = state.autoTransferCycle === 'weekly'
+                ? atFirstRunWeekly(parseInt(document.getElementById('at-day-of-week').value, 10))
+                : atFirstRunMonthly(parseInt(document.getElementById('at-day-of-month').value, 10));
+            el.innerText = atPrettyDate(dateStr);
+        }
+
+        function openAutoTransferForm() {
+            const user = getCurrentUser();
+            const activeAcc = getActiveAccount();
+            if (!user || !activeAcc) {
+                showToast('출금할 계좌를 먼저 선택해 주세요.');
+                return;
+            }
+
+            const fromEl = document.getElementById('at-from-account');
+            if (fromEl) fromEl.innerText = activeAcc.name + ' (' + activeAcc.accountNo + ')';
+
+            const daySelect = document.getElementById('at-day-of-month');
+            if (daySelect && !daySelect.options.length) {
+                let opts = '';
+                for (let i = 1; i <= 31; i++) opts += '<option value="' + i + '">매월 ' + i + '일</option>';
+                daySelect.innerHTML = opts;
+            }
+
+            document.getElementById('at-recipient').value = '';
+            document.getElementById('at-amount').value = '';
+            document.getElementById('at-memo').value = '';
+            setAutoTransferCycle('weekly');
+
+            openModal('modal-auto-transfer-form');
+        }
+
+        async function submitAutoTransfer() {
+            const user = getCurrentUser();
+            const activeAcc = getActiveAccount();
+            if (!user || !activeAcc) return;
+
+            const recipient = document.getElementById('at-recipient').value.trim();
+            const amount = parseInt(document.getElementById('at-amount').value, 10);
+            const memo = document.getElementById('at-memo').value.trim();
+            const cycle = state.autoTransferCycle;
+
+            if (!recipient) {
+                showToast('받는 분을 입력해 주세요.');
+                return;
+            }
+            if (!amount || isNaN(amount) || amount <= 0) {
+                showToast('이체 금액을 올바르게 입력해 주세요.');
+                return;
+            }
+
+            const btn = document.getElementById('at-submit-btn');
+            if (btn) { btn.disabled = true; btn.innerText = '확인 중...'; }
+
+            const restoreBtn = () => {
+                if (btn) { btn.disabled = false; btn.innerText = '자동이체 등록'; }
+            };
+
+            const match = await findRecipientAccountLive(recipient);
+            if (match === 'ambiguous') {
+                showToast('동일한 이름의 회원이 여러 명 있습니다. 계좌번호로 입력해 주세요.');
+                restoreBtn();
+                return;
+            }
+            if (match === 'error') {
+                showToast('서버 조회 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                restoreBtn();
+                return;
+            }
+            if (!match) {
+                showToast('받는 사람을 찾을 수 없습니다. 계좌번호 또는 정확한 닉네임을 입력해 주세요.');
+                restoreBtn();
+                return;
+            }
+            if (match.accountId === activeAcc.id) {
+                showToast('본인의 같은 계좌로는 자동이체를 등록할 수 없습니다.');
+                restoreBtn();
+                return;
+            }
+
+            const dayOfWeek = cycle === 'weekly' ? parseInt(document.getElementById('at-day-of-week').value, 10) : null;
+            const dayOfMonth = cycle === 'monthly' ? parseInt(document.getElementById('at-day-of-month').value, 10) : null;
+            const firstRun = cycle === 'weekly' ? atFirstRunWeekly(dayOfWeek) : atFirstRunMonthly(dayOfMonth);
+
+            try {
+                const { error } = await sbClient.from('auto_transfers').insert({
+                    id: genId('auto'),
+                    user_id: user.id,
+                    from_account_id: activeAcc.id,
+                    to_user_id: match.userId,
+                    to_account_id: match.accountId,
+                    to_alias: match.alias,
+                    to_account_no: match.accountNo || '',
+                    amount: amount,
+                    memo: memo || null,
+                    cycle: cycle,
+                    day_of_week: dayOfWeek,
+                    day_of_month: dayOfMonth,
+                    next_run_date: firstRun,
+                    active: true,
+                    fail_count: 0
+                });
+
+                if (error) {
+                    console.error('자동이체 등록 오류:', error);
+                    showToast('자동이체 등록 중 오류가 발생했습니다.');
+                    restoreBtn();
+                    return;
+                }
+            } catch (err) {
+                console.error('자동이체 등록 오류:', err);
+                showToast('자동이체 등록 중 오류가 발생했습니다.');
+                restoreBtn();
+                return;
+            }
+
+            restoreBtn();
+            closeModal('modal-auto-transfer-form');
+            await loadAutoTransfers();
+            renderAutoTransferList();
+            showToast(match.alias + ' 님에게 ' + atPrettyDate(firstRun) + '부터 자동이체가 시작됩니다.');
+        }
+
+        async function toggleAutoTransfer(id) {
+            const row = state.autoTransfers.find(r => r.id === id);
+            if (!row) return;
+
+            const newActive = !row.active;
+            const patch = { active: newActive };
+
+            
+            if (newActive && row.next_run_date <= atToday()) {
+                patch.next_run_date = row.cycle === 'weekly'
+                    ? atFirstRunWeekly(row.day_of_week)
+                    : atFirstRunMonthly(row.day_of_month);
+            }
+
+            try {
+                const { error } = await sbClient.from('auto_transfers').update(patch).eq('id', id);
+                if (error) {
+                    showToast('상태 변경 중 오류가 발생했습니다.');
+                    return;
+                }
+            } catch (err) {
+                console.error('자동이체 상태 변경 오류:', err);
+                showToast('상태 변경 중 오류가 발생했습니다.');
+                return;
+            }
+
+            row.active = newActive;
+            if (patch.next_run_date) row.next_run_date = patch.next_run_date;
+            renderAutoTransferList();
+            showToast(newActive ? '자동이체를 재개했습니다.' : '자동이체를 일시정지했습니다.');
+        }
+
+        async function deleteAutoTransfer(id) {
+            const row = state.autoTransfers.find(r => r.id === id);
+            if (!row) return;
+
+            const confirmed = window.confirm("'" + row.to_alias + "' 님에게 보내는 자동이체를 해지하시겠습니까?");
+            if (!confirmed) return;
+
+            try {
+                const { error } = await sbClient.from('auto_transfers').delete().eq('id', id);
+                if (error) {
+                    showToast('해지 중 오류가 발생했습니다.');
+                    return;
+                }
+            } catch (err) {
+                console.error('자동이체 해지 오류:', err);
+                showToast('해지 중 오류가 발생했습니다.');
+                return;
+            }
+
+            state.autoTransfers = state.autoTransfers.filter(r => r.id !== id);
+            renderAutoTransferList();
+            showToast('자동이체가 해지되었습니다.');
+        }
+
+        
+        
+        
+        async function runDueAutoTransfers() {
+            const user = getCurrentUser();
+            if (!user) return;
+
+            let rows = [];
+            try {
+                const { data, error } = await sbClient
+                    .from('auto_transfers')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .eq('active', true)
+                    .lte('next_run_date', atToday());
+                if (error || !data) return;
+                rows = data;
+            } catch (err) {
+                console.error('자동이체 조회 오류:', err);
+                return;
+            }
+
+            if (!rows.length) return;
+
+            let executedCount = 0;
+            for (const row of rows) {
+                let guard = 0;
+                while (row.next_run_date <= atToday() && guard < AUTO_TRANSFER_MAX_CATCHUP) {
+                    guard++;
+                    const proceeded = await runSingleAutoTransfer(row);
+                    if (!proceeded) break;
+                    executedCount++;
+                }
+            }
+
+            if (executedCount > 0) {
+                await loadUserFinancialData(user.id);
+                renderApp();
+                refreshNotifBadge();
+            }
+            await loadAutoTransfers();
+        }
+
+        
+        
+        async function runSingleAutoTransfer(row) {
+            const user = getCurrentUser();
+            if (!user) return false;
+
+            const dueDate = row.next_run_date;
+            const nextDate = atNextRunDate(row);
+            const amount = row.amount;
+
+            
+            let claimed = false;
+            try {
+                const { data, error } = await sbClient
+                    .from('auto_transfers')
+                    .update({ next_run_date: nextDate, last_run_at: new Date().toISOString() })
+                    .eq('id', row.id)
+                    .eq('next_run_date', dueDate)
+                    .select();
+                if (error) {
+                    console.error('자동이체 선점 오류:', error);
+                    return false;
+                }
+                claimed = !!(data && data.length);
+            } catch (err) {
+                console.error('자동이체 선점 오류:', err);
+                return false;
+            }
+
+            row.next_run_date = nextDate;
+            if (!claimed) return false;
+
+            const markFailure = async (reason) => {
+                try {
+                    await sbClient.from('auto_transfers')
+                        .update({ last_result: reason, fail_count: (row.fail_count || 0) + 1 })
+                        .eq('id', row.id);
+                } catch (err) {
+                    console.error('자동이체 실패 기록 오류:', err);
+                }
+                row.fail_count = (row.fail_count || 0) + 1;
+                row.last_result = reason;
+                notifyUser(user.id, '자동이체 실패',
+                    row.to_alias + '님 ' + formatNumber(amount) + '원 (' + dueDate + ') · ' + reason);
+                showToast('자동이체 실패 (' + row.to_alias + '): ' + reason);
+            };
+
+            try {
+                const { data: fromAcc } = await sbClient
+                    .from('accounts').select('balance, is_frozen').eq('id', row.from_account_id).single();
+                if (!fromAcc) { await markFailure('출금 계좌를 찾을 수 없습니다'); return true; }
+                if (fromAcc.is_frozen) { await markFailure('출금 계좌가 정지되었습니다'); return true; }
+                if (fromAcc.balance < amount) { await markFailure('잔액이 부족합니다'); return true; }
+
+                const { data: toAcc } = await sbClient
+                    .from('accounts').select('balance, is_frozen').eq('id', row.to_account_id).single();
+                if (!toAcc) { await markFailure('받는 계좌를 찾을 수 없습니다'); return true; }
+                if (toAcc.is_frozen) { await markFailure('받는 분의 계좌가 정지되었습니다'); return true; }
+
+                await sbClient.from('accounts').update({ balance: fromAcc.balance - amount }).eq('id', row.from_account_id);
+                await sbClient.from('accounts').update({ balance: toAcc.balance + amount }).eq('id', row.to_account_id);
+
+                await sbClient.from('transactions').insert([
+                    {
+                        id: genId('tx'),
+                        account_id: row.from_account_id,
+                        title: row.to_alias + ' 님에게 자동이체',
+                        counterparty_name: row.to_alias,
+                        memo: row.memo || null,
+                        amount: -amount,
+                        type: 'transfer',
+                        date_label: dueDate
+                    },
+                    {
+                        id: genId('tx'),
+                        account_id: row.to_account_id,
+                        title: user.alias + ' 님으로부터 자동이체 입금',
+                        counterparty_name: user.alias,
+                        memo: row.memo || null,
+                        amount: amount,
+                        type: 'deposit',
+                        date_label: dueDate
+                    }
+                ]);
+
+                await sbClient.from('auto_transfers')
+                    .update({ last_result: '성공', fail_count: 0 })
+                    .eq('id', row.id);
+                row.fail_count = 0;
+                row.last_result = '성공';
+
+                notifyUser(user.id, '자동이체 완료',
+                    row.to_alias + '님에게 ' + formatNumber(amount) + '원이 이체되었습니다.');
+                notifyUser(row.to_user_id, '자동이체 입금',
+                    user.alias + '님으로부터 ' + formatNumber(amount) + '원이 입금되었습니다.');
+                showToast('자동이체 ' + formatNumber(amount) + '원 → ' + row.to_alias);
+
+                if (amount >= LARGE_TRANSFER_THRESHOLD) {
+                    sbClient.from('admin_alerts').insert({
+                        id: genId('alert'),
+                        type: 'large_transfer',
+                        message: user.alias + '님이 ' + row.to_alias + '님에게 ' + formatNumber(amount) + '원을 자동이체했습니다.',
+                        amount: amount,
+                        related_user_id: user.id,
+                        read: false
+                    }).then(() => {}, (err) => console.error('관리자 알림 생성 오류:', err));
+                }
+
+                return true;
+            } catch (err) {
+                console.error('자동이체 실행 오류:', err);
+                await markFailure('처리 중 오류가 발생했습니다');
+                return true;
             }
         }
 
