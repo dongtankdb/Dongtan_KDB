@@ -1432,6 +1432,7 @@
                 name: 'KDB 성수 디저트 카페',
                 category: '카페/디저트',
                 bizNo: '128-81-04921',
+                pin: '1234',
                 accountNo: '110-384-910283',
                 unsettledBalance: 0,
                 totalSales: 0,
@@ -1491,6 +1492,7 @@
                         alias: user.alias,
                         discord: user.discord,
                         uid: user.uid,
+                        pin: user.pin,
                         points: user.points || 0,
                         current_account_id: user.currentAccountId || null,
                         attendance_history: user.attendanceHistory || {},
@@ -1532,6 +1534,7 @@
                         name: m.name,
                         category: m.category,
                         biz_no: m.bizNo,
+                        pin: m.pin,
                         account_no: m.accountNo,
                         unsettled_balance: m.unsettledBalance || 0,
                         total_sales: m.totalSales || 0,
@@ -1568,8 +1571,8 @@
                 { data: merchants, error: mErr },
                 { data: sales, error: sErr }
             ] = await Promise.all([
-                sbClient.from('users_public').select('*'),
-                sbClient.from('merchants_public').select('*'),
+                sbClient.from('users').select('*'),
+                sbClient.from('merchants').select('*'),
                 sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false })
             ]);
 
@@ -1589,6 +1592,7 @@
                 alias: u.alias,
                 discord: u.discord,
                 uid: u.uid,
+                pin: u.pin,
                 points: u.points || 0,
                 currentAccountId: u.current_account_id,
                 accounts: [],
@@ -1605,6 +1609,7 @@
                     name: m.name,
                     category: m.category,
                     bizNo: m.biz_no,
+                    pin: m.pin,
                     accountNo: m.account_no,
                     unsettledBalance: m.unsettled_balance || 0,
                     totalSales: m.total_sales || 0,
@@ -2398,60 +2403,23 @@
         }
 
         async function verifyPinAndLogin() {
-            const targetUserId = state.selectedLoginUserId;
-            if (!targetUserId) return;
-
-            let row;
-            try {
-                const { data, error } = await sbClient.rpc('verify_user_login', {
-                    p_user_id: targetUserId,
-                    p_pin: state.enteredPin
-                });
-                if (error) {
-                    console.error('로그인 확인 오류:', error);
-                    showToast('로그인 확인 중 오류가 발생했습니다.');
-                    return;
-                }
-                row = data && data[0];
-            } catch (err) {
-                console.error('로그인 확인 오류:', err);
-                showToast('로그인 확인 중 오류가 발생했습니다.');
-                return;
-            }
-
-            if (!row) {
+            const targetUser = state.users.find(u => u.id === state.selectedLoginUserId);
+            if (targetUser && targetUser.pin === state.enteredPin) {
+                state.currentUserId = targetUser.id;
+                addKnownAccountId(targetUser.id);
+                showToast('계좌 정보를 불러오는 중입니다...');
+                await loadUserFinancialData(targetUser.id);
+                saveAppData();
+                subscribeToRealtimeUpdates();
+                document.getElementById('auth-screen').classList.add('hidden-auth');
+                renderApp();
+                showToast(targetUser.alias + '님 환영합니다!');
+                runDueAutoTransfers();
+            } else {
                 showToast('PIN 번호가 일치하지 않습니다.');
                 state.enteredPin = '';
                 updatePinDots();
-                return;
             }
-
-            
-            let localUser = state.users.find(u => u.id === row.id);
-            if (!localUser) {
-                localUser = { id: row.id, accounts: [], transactions: [] };
-                state.users.push(localUser);
-            }
-            localUser.alias = row.alias;
-            localUser.discord = row.discord;
-            localUser.uid = row.uid;
-            localUser.points = row.points || 0;
-            localUser.currentAccountId = row.current_account_id;
-            localUser.attendanceHistory = row.attendance_history || {};
-            localUser.purchasedItems = row.purchased_items || [];
-            localUser.isAdmin = row.is_admin || false;
-            localUser.isFrozen = row.is_frozen || false;
-
-            state.currentUserId = row.id;
-            addKnownAccountId(row.id);
-            showToast('계좌 정보를 불러오는 중입니다...');
-            await loadUserFinancialData(row.id);
-            saveAppData();
-            subscribeToRealtimeUpdates();
-            document.getElementById('auth-screen').classList.add('hidden-auth');
-            renderApp();
-            showToast(row.alias + '님 환영합니다!');
-            runDueAutoTransfers();
         }
 
         async function executeSignup() {
@@ -2478,34 +2446,42 @@
             const signupBtn = document.getElementById('signup-submit-btn');
             if (signupBtn) signupBtn.disabled = true;
 
-            let newUserId;
             try {
-                const { data, error } = await sbClient.rpc('signup_user', {
-                    p_alias: alias, p_discord: discord, p_uid: uid, p_pin: pin
-                });
-                if (error) {
-                    const msg = error.message || '';
-                    if (msg.includes('discord_taken')) {
-                        showToast('이미 가입된 디스코드 ID입니다.');
-                    } else if (msg.includes('uid_taken')) {
-                        showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
-                    } else {
-                        console.error('회원가입 오류:', error);
-                        showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
-                    }
+                const { data: existing, error: checkErr } = await sbClient
+                    .from('users')
+                    .select('id, discord, uid')
+                    .or('discord.eq.' + discord + ',uid.eq.' + uid);
+
+                if (checkErr) {
+                    console.error('중복 체크 오류:', checkErr);
+                    showToast('가입 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
                     if (signupBtn) signupBtn.disabled = false;
                     return;
                 }
-                newUserId = data;
+
+                const discordTaken = (existing || []).some(u => u.discord === discord);
+                const uidTaken = (existing || []).some(u => u.uid === uid);
+
+                if (discordTaken) {
+                    showToast('이미 가입된 디스코드 ID입니다.');
+                    if (signupBtn) signupBtn.disabled = false;
+                    return;
+                }
+                if (uidTaken) {
+                    showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
+                    if (signupBtn) signupBtn.disabled = false;
+                    return;
+                }
             } catch (err) {
-                console.error('회원가입 오류:', err);
-                showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                console.error('중복 체크 오류:', err);
+                showToast('가입 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 if (signupBtn) signupBtn.disabled = false;
                 return;
             }
 
             if (signupBtn) signupBtn.disabled = false;
 
+            const newUserId = genId('usr');
             const newAccountId = genId('acc');
             const newAccNo = '110-' + Math.floor(100 + Math.random() * 900) + '-' + Math.floor(100000 + Math.random() * 900000);
 
@@ -2514,6 +2490,7 @@
                 alias: alias,
                 discord: discord,
                 uid: uid,
+                pin: pin,
                 points: 1000,
                 currentAccountId: newAccountId,
                 accounts: [
@@ -2720,7 +2697,7 @@
                 if (accByNo && accByNo.length) {
                     const acc = accByNo[0];
                     const { data: owner, error: ownerErr } = await sbClient
-                        .from('users_public')
+                        .from('users')
                         .select('id, alias')
                         .eq('id', acc.user_id)
                         .single();
@@ -2730,7 +2707,7 @@
                 }
 
                 const { data: nameMatches, error: nameErr } = await sbClient
-                    .from('users_public')
+                    .from('users')
                     .select('id, alias, current_account_id')
                     .eq('alias', query);
 
@@ -3335,65 +3312,30 @@
             });
         }
 
-        async function verifyMerchantPinLogin() {
-            const targetMchId = state.selectedMerchantLoginId;
-            if (!targetMchId) return;
-
-            let row;
-            try {
-                const { data, error } = await sbClient.rpc('verify_merchant_login', {
-                    p_merchant_id: targetMchId,
-                    p_pin: state.enteredMerchantPin
-                });
-                if (error) {
-                    console.error('가맹점 로그인 확인 오류:', error);
-                    showToast('로그인 확인 중 오류가 발생했습니다.');
+        function verifyMerchantPinLogin() {
+            const targetMch = state.merchants.find(m => m.id === state.selectedMerchantLoginId);
+            if (targetMch && targetMch.pin === state.enteredMerchantPin) {
+                if (targetMch.status === 'pending') {
+                    showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
+                    state.enteredMerchantPin = '';
+                    updateMerchantPinDots();
                     return;
                 }
-                row = data && data[0];
-            } catch (err) {
-                console.error('가맹점 로그인 확인 오류:', err);
-                showToast('로그인 확인 중 오류가 발생했습니다.');
-                return;
-            }
-
-            if (!row) {
+                if (targetMch.status === 'rejected') {
+                    showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
+                    state.enteredMerchantPin = '';
+                    updateMerchantPinDots();
+                    return;
+                }
+                state.currentMerchantId = targetMch.id;
+                saveSession();
+                showToast('\'' + targetMch.name + '\' 가맹점으로 접속되었습니다.');
+                renderMerchantDashboard();
+            } else {
                 showToast('가맹점 보안 PIN 번호가 일치하지 않습니다.');
                 state.enteredMerchantPin = '';
                 updateMerchantPinDots();
-                return;
             }
-
-            let localMch = state.merchants.find(m => m.id === row.id);
-            if (!localMch) {
-                localMch = { id: row.id, salesHistory: [] };
-                state.merchants.push(localMch);
-            }
-            localMch.name = row.name;
-            localMch.category = row.category;
-            localMch.bizNo = row.biz_no;
-            localMch.accountNo = row.account_no;
-            localMch.unsettledBalance = row.unsettled_balance || 0;
-            localMch.totalSales = row.total_sales || 0;
-            localMch.status = row.status;
-
-            if (localMch.status === 'pending') {
-                showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
-                state.enteredMerchantPin = '';
-                updateMerchantPinDots();
-                return;
-            }
-            if (localMch.status === 'rejected') {
-                showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
-                state.enteredMerchantPin = '';
-                updateMerchantPinDots();
-                return;
-            }
-
-            state.currentMerchantId = localMch.id;
-            saveSession();
-            showToast('\'' + localMch.name + '\' 가맹점으로 접속되었습니다.');
-            renderMerchantDashboard();
         }
 
         async function executeMerchantSignup() {
@@ -3417,25 +3359,26 @@
             const mchSignupBtn = document.getElementById('mch-signup-submit-btn');
             if (mchSignupBtn) mchSignupBtn.disabled = true;
 
-            let newMchId;
             try {
-                const { data, error } = await sbClient.rpc('signup_merchant', {
-                    p_name: name, p_category: category, p_biz_no: biz, p_account_no: acc, p_pin: pin
-                });
-                if (error) {
-                    const msg = error.message || '';
-                    if (msg.includes('biz_no_taken')) {
-                        showToast('이미 등록된 사업자번호입니다.');
-                    } else {
-                        console.error('가맹점 가입 오류:', error);
-                        showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
-                    }
+                const { data: existing, error: checkErr } = await sbClient
+                    .from('merchants')
+                    .select('id, biz_no')
+                    .eq('biz_no', biz);
+
+                if (checkErr) {
+                    console.error('중복 체크 오류:', checkErr);
+                    showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
                     if (mchSignupBtn) mchSignupBtn.disabled = false;
                     return;
                 }
-                newMchId = data;
+
+                if (existing && existing.length > 0) {
+                    showToast('이미 등록된 사업자번호입니다.');
+                    if (mchSignupBtn) mchSignupBtn.disabled = false;
+                    return;
+                }
             } catch (err) {
-                console.error('가맹점 가입 오류:', err);
+                console.error('중복 체크 오류:', err);
                 showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 if (mchSignupBtn) mchSignupBtn.disabled = false;
                 return;
@@ -3444,10 +3387,11 @@
             if (mchSignupBtn) mchSignupBtn.disabled = false;
 
             const newMerchant = {
-                id: newMchId,
+                id: genId('mch'),
                 name: name,
                 category: category,
                 bizNo: biz,
+                pin: pin,
                 accountNo: acc,
                 unsettledBalance: 0,
                 totalSales: 0,
@@ -3628,7 +3572,7 @@
             let customerUser, customerAcc;
             try {
                 const [{ data: uData, error: uErr }, { data: aData, error: aErr }] = await Promise.all([
-                    sbClient.from('users_public').select('*').eq('id', codeRow.user_id).single(),
+                    sbClient.from('users').select('*').eq('id', codeRow.user_id).single(),
                     sbClient.from('accounts').select('*').eq('id', codeRow.account_id).single()
                 ]);
                 if (uErr || aErr || !uData || !aData) {
@@ -4033,7 +3977,7 @@
                 }
 
                 const userIds = [...new Set(pending.map(r => r.user_id))];
-                const { data: users } = await sbClient.from('users_public').select('id, alias, discord').in('id', userIds);
+                const { data: users } = await sbClient.from('users').select('id, alias, discord').in('id', userIds);
 
                 listEl.innerHTML = pending.map(r => {
                     const u = (users || []).find(x => x.id === r.user_id);
@@ -4118,7 +4062,7 @@
 
             try {
                 const { data: pending, error } = await sbClient
-                    .from('merchants_public')
+                    .from('merchants')
                     .select('*')
                     .eq('status', 'pending')
                     .order('created_at', { ascending: false });
@@ -4173,7 +4117,7 @@
             modal.classList.remove('hidden');
 
             try {
-                const { data: user, error: uErr } = await sbClient.from('users_public').select('*').eq('id', userId).single();
+                const { data: user, error: uErr } = await sbClient.from('users').select('*').eq('id', userId).single();
                 if (uErr || !user) {
                     body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">회원 정보를 불러오지 못했습니다.</div>';
                     return;
@@ -4297,7 +4241,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('users_public').select('id, alias, discord, uid, current_account_id, is_frozen');
+                let query = sbClient.from('users').select('id, alias, discord, uid, current_account_id, is_frozen');
                 if (search && search.trim()) {
                     query = query.or('alias.ilike.%' + search.trim() + '%,discord.ilike.%' + search.trim() + '%');
                 }
@@ -4441,7 +4385,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('merchants_public').select('*');
+                let query = sbClient.from('merchants').select('*');
                 if (search && search.trim()) {
                     query = query.ilike('name', '%' + search.trim() + '%');
                 }
@@ -4543,9 +4487,9 @@
                     { count: pendingPaymentCount, error: ppErr },
                     { data: feeRows, error: feeErr }
                 ] = await Promise.all([
-                    sbClient.from('users_public').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+                    sbClient.from('users').select('id', { count: 'exact', head: true }),
+                    sbClient.from('merchants').select('id', { count: 'exact', head: true }),
+                    sbClient.from('merchants').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('transactions').select('id', { count: 'exact', head: true }),
                     sbClient.from('payment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('merchant_sales').select('fee_amount')
