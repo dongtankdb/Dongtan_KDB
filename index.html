@@ -1194,7 +1194,7 @@
                         <span id="server-status-text" class="text-xs font-semibold text-zinc-500">확인 중...</span>
                         <span id="server-status-latency" class="text-[10px] text-zinc-400"></span>
                     </div>
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
                         <div class="bg-zinc-50 rounded-xl p-3 text-center border border-zinc-100">
                             <div class="text-[10px] text-zinc-400 mb-1">전체 회원</div>
                             <div id="stat-user-count" class="text-lg font-extrabold text-zinc-900">-</div>
@@ -1214,6 +1214,10 @@
                         <div class="bg-zinc-50 rounded-xl p-3 text-center border border-zinc-100">
                             <div class="text-[10px] text-zinc-400 mb-1">대기중 결제요청</div>
                             <div id="stat-pending-payment-count" class="text-lg font-extrabold text-zinc-900">-</div>
+                        </div>
+                        <div class="bg-zinc-50 rounded-xl p-3 text-center border border-zinc-100">
+                            <div class="text-[10px] text-zinc-400 mb-1">누적 수수료 수익</div>
+                            <div id="stat-fee-total" class="text-lg font-extrabold text-emerald-600">-</div>
                         </div>
                     </div>
                     <div id="server-status-updated" class="text-[10px] text-zinc-400 mt-3">-</div>
@@ -1428,6 +1432,7 @@
                                 merchant_id: m.id,
                                 title: s.title,
                                 amount: s.amount,
+                                fee_amount: s.feeAmount || 0,
                                 settled: !!s.settled,
                                 date_label: s.date
                             });
@@ -1493,7 +1498,7 @@
                     status: m.status || 'approved',
                     salesHistory: (sales || [])
                         .filter(s => s.merchant_id === m.id)
-                        .map(s => ({ id: s.id, title: s.title, amount: s.amount, date: s.date_label || '', settled: s.settled }))
+                        .map(s => ({ id: s.id, title: s.title, amount: s.amount, feeAmount: s.fee_amount || 0, date: s.date_label || '', settled: s.settled }))
                 }));
             } else {
                 
@@ -1595,7 +1600,7 @@
             return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
         }
 
-        const APP_BUILD_VERSION = '2026-01-15-01';
+        const APP_BUILD_VERSION = '2026-01-15-02';
         let versionCheckTimer = null;
 
         function extractBuildVersion(html) {
@@ -2631,6 +2636,7 @@
         
         
         const LARGE_TRANSFER_THRESHOLD = 500000;
+        const PAYMENT_FEE_RATE = 0.07;
         const TRANSFER_RATE_WINDOW_MINUTES = 5;
         const TRANSFER_RATE_MAX_RECIPIENTS = 3;
 
@@ -3351,18 +3357,21 @@
                 if (mch.salesHistory.length === 0) {
                     historyList.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">최근 거래 내역이 없습니다.</div>';
                 } else {
-                    historyList.innerHTML = mch.salesHistory.map(item => 
-                        '<div class="bg-zinc-50 p-3 rounded-xl border border-zinc-200 flex justify-between items-center text-xs">' +
+                    historyList.innerHTML = mch.salesHistory.map(item => {
+                        const netAmount = item.amount - (item.feeAmount || 0);
+                        const feeHtml = item.feeAmount ? '<div class="text-[10px] text-zinc-400 mt-0.5">수수료 ' + formatNumber(item.feeAmount) + '원 차감 · 실수령 ' + formatNumber(netAmount) + '원</div>' : '';
+                        return '<div class="bg-zinc-50 p-3 rounded-xl border border-zinc-200 flex justify-between items-center text-xs">' +
                             '<div>' +
                                 '<div class="font-bold text-zinc-800">' + item.title + '</div>' +
                                 '<div class="text-[10px] text-zinc-400 mt-0.5">' + item.date + '</div>' +
+                                feeHtml +
                             '</div>' +
                             '<div class="text-right">' +
                                 '<div class="font-bold text-zinc-900">' + formatNumber(item.amount) + '원</div>' +
                                 '<span class="text-[10px] ' + (item.settled ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold') + '">' + (item.settled ? '정산완료' : '미정산') + '</span>' +
                             '</div>' +
-                        '</div>'
-                    ).join('');
+                        '</div>';
+                    }).join('');
                 }
             }
         }
@@ -3579,12 +3588,15 @@
                 cleanupMerchantWaiting();
                 const mch = getCurrentMerchant();
                 if (mch && mch.id === ctx.merchantId) {
-                    mch.unsettledBalance += ctx.amount;
+                    const feeAmount = Math.round(ctx.amount * PAYMENT_FEE_RATE);
+                    const netAmount = ctx.amount - feeAmount;
+                    mch.unsettledBalance += netAmount;
                     mch.totalSales += ctx.amount;
                     mch.salesHistory.unshift({
                         id: genId('s'),
                         title: ctx.salesTitle,
                         amount: ctx.amount,
+                        feeAmount: feeAmount,
                         date: '방금 전',
                     createdAt: new Date().toISOString(),
                         settled: false
@@ -4224,14 +4236,20 @@
                     { count: merchantCount, error: mErr },
                     { count: merchantPendingCount, error: mpErr },
                     { count: txCount, error: tErr },
-                    { count: pendingPaymentCount, error: ppErr }
+                    { count: pendingPaymentCount, error: ppErr },
+                    { data: feeRows, error: feeErr }
                 ] = await Promise.all([
                     sbClient.from('users').select('id', { count: 'exact', head: true }),
                     sbClient.from('merchants').select('id', { count: 'exact', head: true }),
                     sbClient.from('merchants').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('transactions').select('id', { count: 'exact', head: true }),
-                    sbClient.from('payment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+                    sbClient.from('payment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+                    sbClient.from('merchant_sales').select('fee_amount')
                 ]);
+
+                const totalFees = (feeRows || []).reduce((sum, r) => sum + (r.fee_amount || 0), 0);
+                document.getElementById('stat-fee-total').innerText = feeErr ? '-' : formatNumber(totalFees) + '원';
+                if (feeErr) console.error('수수료 합계 조회 오류:', feeErr);
 
                 const latency = Math.round(performance.now() - startTime);
 
