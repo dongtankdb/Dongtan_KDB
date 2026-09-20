@@ -2206,7 +2206,16 @@
 
             const toast = document.createElement('div');
             toast.className = 'pointer-events-auto bg-zinc-900/95 text-white px-4 py-3 rounded-2xl text-xs font-medium shadow-floating flex items-center justify-between transition-all duration-300 opacity-0 translate-y-[-10px] backdrop-blur-md border border-zinc-700/50';
-            toast.innerHTML = '<span>' + message + '</span><i class="fa-solid fa-xmark text-zinc-400 text-xs ml-2 cursor-pointer" onclick="this.parentElement.remove()"></i>';
+
+            const msgSpan = document.createElement('span');
+            msgSpan.innerText = message;
+
+            const closeIcon = document.createElement('i');
+            closeIcon.className = 'fa-solid fa-xmark text-zinc-400 text-xs ml-2 cursor-pointer';
+            closeIcon.onclick = () => toast.remove();
+
+            toast.appendChild(msgSpan);
+            toast.appendChild(closeIcon);
             
             container.appendChild(toast);
             
@@ -2327,7 +2336,7 @@
 
             if (knownUsers.length > 1) {
                 selector.innerHTML = '<select onchange="selectLoginUser(this.value)" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-xs text-zinc-300 font-semibold focus:outline-none">' +
-                    knownUsers.map(u => '<option value="' + u.id + '" ' + (u.id === activeUser.id ? 'selected' : '') + '>' + u.alias + ' (' + u.discord + ')</option>').join('') +
+                    knownUsers.map(u => '<option value="' + u.id + '" ' + (u.id === activeUser.id ? 'selected' : '') + '>' + escapeHtml(u.alias) + ' (' + escapeHtml(u.discord) + ')</option>').join('') +
                 '</select>';
             } else {
                 selector.innerHTML = '';
@@ -2666,7 +2675,7 @@
 
                 return '<div class="bg-white p-3.5 rounded-2xl border border-zinc-200/80 shadow-sm flex justify-between items-center">' +
                     '<div>' +
-                        '<div class="font-bold text-xs text-zinc-900">' + tx.title + '</div>' +
+                        '<div class="font-bold text-xs text-zinc-900">' + escapeHtml(tx.title) + '</div>' +
                         '<div class="text-[10px] text-zinc-400 mt-0.5">' + displayDate + '</div>' +
                         memoHtml +
                     '</div>' +
@@ -2742,8 +2751,8 @@
                 listContainer.innerHTML = user.purchasedItems.map(item => 
                     '<div class="bg-white p-3.5 rounded-xl border border-zinc-200 flex justify-between items-center text-xs">' +
                         '<div>' +
-                            '<div class="font-bold text-zinc-800">' + item.name + '</div>' +
-                            '<div class="text-[10px] text-zinc-400 mt-0.5">' + item.date + ' | 결제수단: ' + item.method + '</div>' +
+                            '<div class="font-bold text-zinc-800">' + escapeHtml(item.name) + '</div>' +
+                            '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(item.date) + ' | 결제수단: ' + escapeHtml(item.method) + '</div>' +
                         '</div>' +
                         '<div class="font-extrabold text-zinc-900">' + formatNumber(item.price) + '원</div>' +
                     '</div>'
@@ -3145,8 +3154,8 @@
 
                 return '<div onclick="selectActiveAccount(\'' + acc.id + '\')" class="p-4 rounded-2xl border ' + borderClass + ' cursor-pointer flex justify-between items-center transition-all">' +
                     '<div>' +
-                        '<div class="font-bold text-xs text-zinc-900">' + acc.name + '</div>' +
-                        '<div class="text-[11px] text-zinc-400 font-mono mt-0.5">' + acc.accountNo + '</div>' +
+                        '<div class="font-bold text-xs text-zinc-900">' + escapeHtml(acc.name) + '</div>' +
+                        '<div class="text-[11px] text-zinc-400 font-mono mt-0.5">' + escapeHtml(acc.accountNo) + '</div>' +
                     '</div>' +
                     '<div class="text-right">' +
                         '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원</div>' +
@@ -3601,8 +3610,8 @@
                         const feeHtml = item.feeAmount ? '<div class="text-[10px] text-zinc-400 mt-0.5">수수료 ' + formatNumber(item.feeAmount) + '원 차감 · 실수령 ' + formatNumber(netAmount) + '원</div>' : '';
                         return '<div class="bg-zinc-50 p-3 rounded-xl border border-zinc-200 flex justify-between items-center text-xs">' +
                             '<div>' +
-                                '<div class="font-bold text-zinc-800">' + item.title + '</div>' +
-                                '<div class="text-[10px] text-zinc-400 mt-0.5">' + item.date + '</div>' +
+                                '<div class="font-bold text-zinc-800">' + escapeHtml(item.title) + '</div>' +
+                                '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(item.date) + '</div>' +
                                 feeHtml +
                             '</div>' +
                             '<div class="text-right">' +
