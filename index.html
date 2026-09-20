@@ -356,116 +356,110 @@
         </div>
 
         
-        <div id="tab-home" class="tab-content active no-scrollbar">
-            <div class="flex justify-between items-center px-5 py-4 bg-white/90 backdrop-blur-md sticky top-0 z-10 border-b border-zinc-200/80">
-                <div class="w-10"></div>
-                <div class="text-base font-bold text-zinc-900" id="home-user-alias">-</div>
-                <div class="w-10 flex justify-end">
-                    <button class="header-btn relative" onclick="openNotificationModal()">
-                        <i class="fa-regular fa-bell text-lg text-zinc-900"></i>
-                        <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
-                    </button>
+        <div id="tab-home" class="tab-content active no-scrollbar" style="background:#F2F3F5;">
+            <div class="flex justify-between items-center px-5 py-4 sticky top-0 z-10" style="background:#F2F3F5;">
+                <div class="flex items-center gap-1.5">
+                    <img src="data:image/png;base64,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" class="w-6 h-6 rounded-md object-contain" alt="KDB Pay">
+                    <span class="font-extrabold text-[15px] text-zinc-900">KDB Pay</span>
+                    <i class="fa-solid fa-chevron-right text-zinc-400 text-[10px]"></i>
                 </div>
+                <button class="header-btn relative" onclick="openNotificationModal()">
+                    <i class="fa-regular fa-bell text-lg text-zinc-700"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
+                </button>
             </div>
 
-            <div class="px-5 py-3">
-                <div class="bg-gradient-to-br from-zinc-900 via-stone-900 to-black rounded-3xl p-6 text-white shadow-xl mb-5 relative overflow-hidden isolate border border-zinc-800">
-                    <div class="flex justify-between items-center mb-4 relative z-10">
-                        <span id="home-account-type" class="bg-white/10 backdrop-blur-md text-zinc-200 text-xs font-semibold px-3 py-1 rounded-full border border-white/10">
-                            계좌 없음
-                        </span>
-                        <div class="flex gap-1.5">
-                            <button onclick="openCreateAccountModal()" class="text-xs bg-white text-zinc-900 hover:bg-zinc-200 px-2.5 py-1 rounded-lg font-bold transition-all shadow-sm">
-                                <i class="fa-solid fa-plus text-[10px] mr-1"></i>개설
-                            </button>
-                            <button onclick="openAccountSelectorModal()" class="text-xs bg-white/10 hover:bg-white/20 text-white px-2.5 py-1 rounded-lg font-medium transition-all backdrop-blur-md border border-white/10">
-                                변경 <i class="fa-solid fa-chevron-down text-[10px] ml-0.5"></i>
-                            </button>
+            <span id="home-user-alias" class="hidden">-</span>
+            <span id="home-account-type" class="hidden">-</span>
+            <span id="home-account-no" class="hidden">-</span>
+            <span id="home-account-uid" class="hidden">-</span>
+            <span id="main-balance" class="hidden">0</span>
+
+            <div class="px-4 pb-6 space-y-3">
+
+                <div onclick="switchTab('shop', document.querySelectorAll('.nav-item')[1])" class="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm cursor-pointer active:scale-[0.99] transition-transform">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-zinc-900 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-bag-shopping text-white text-sm"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="font-bold text-sm text-zinc-900 truncate">KDB 페이 쇼핑 마켓</div>
+                            <div class="text-[11px] text-zinc-400 mt-0.5 truncate">쇼핑관으로 이동하여 상품을 확인해 보세요</div>
                         </div>
                     </div>
-                    
-                    <div class="flex items-center justify-between mb-1 relative z-10">
-                        <button onclick="copyAccountNo()" class="flex items-center gap-1.5 text-zinc-400 hover:text-white text-xs tracking-wider font-mono transition-colors" title="탭하면 계좌번호가 복사됩니다">
-                            <span id="home-account-no" style="user-select: text; -webkit-user-select: text;">-</span>
-                            <i class="fa-regular fa-copy text-[10px]"></i>
-                        </button>
-                        <div id="home-account-uid" class="text-[10px] font-mono text-zinc-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">-</div>
-                    </div>
-
-                    <div class="flex items-baseline mb-6 mt-2 relative z-10">
-                        <span id="main-balance" class="text-4xl font-extrabold tracking-tight">0</span>
-                        <span class="text-xl font-medium ml-1 text-zinc-300">원</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 relative z-10">
-                        <button onclick="openDepositModal()" class="bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 backdrop-blur-md border border-white/10 transition-all active:scale-95">
-                            <i class="fa-solid fa-wallet text-zinc-300"></i> 잔액 채우기
-                        </button>
-                        <button onclick="openTransferModal()" class="bg-white text-zinc-950 hover:bg-zinc-200 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md">
-                            <i class="fa-solid fa-paper-plane"></i> 이체하기
-                        </button>
-                    </div>
-
-                    <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
-                    <div class="absolute -left-10 -top-10 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none"></div>
+                    <span class="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1.5 rounded-lg shrink-0 ml-2">바로가기</span>
                 </div>
 
-                <div class="bg-white rounded-2xl p-4 border border-zinc-200/80 shadow-card mb-5 grid grid-cols-4 gap-2">
-                    <button onclick="openTransferModal()" class="flex flex-col items-center gap-2 p-2 hover:bg-zinc-100 rounded-xl transition-all">
-                        <div class="w-12 h-12 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-lg shadow-sm border border-zinc-200">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div id="home-account-list"></div>
+                    <div onclick="openCreateAccountModal()" class="flex items-center gap-3 px-4 py-3.5 border-t border-zinc-100 cursor-pointer hover:bg-zinc-50 transition-colors">
+                        <div class="w-9 h-9 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-plus text-zinc-500 text-xs"></i>
                         </div>
-                        <span class="text-xs font-semibold text-zinc-800">이체</span>
-                    </button>
-                    <button onclick="switchTab('pay', document.querySelectorAll('.nav-item')[2])" class="flex flex-col items-center gap-2 p-2 hover:bg-zinc-100 rounded-xl transition-all">
-                        <div class="w-12 h-12 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-lg shadow-sm border border-zinc-200">
-                            <i class="fa-solid fa-qrcode"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-zinc-800">결제</span>
-                    </button>
-                    <button onclick="openDepositModal()" class="flex flex-col items-center gap-2 p-2 hover:bg-zinc-100 rounded-xl transition-all">
-                        <div class="w-12 h-12 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-lg shadow-sm border border-zinc-200">
-                            <i class="fa-solid fa-plus"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-zinc-800">채우기</span>
-                    </button>
-                    <button onclick="switchTab('benefits', document.querySelectorAll('.nav-item')[3])" class="flex flex-col items-center gap-2 p-2 hover:bg-zinc-100 rounded-xl transition-all">
-                        <div class="w-12 h-12 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-lg shadow-sm border border-zinc-200">
-                            <i class="fa-solid fa-gift"></i>
-                        </div>
-                        <span class="text-xs font-semibold text-zinc-800">혜택</span>
-                    </button>
-                </div>
-
-                <div onclick="switchTab('shop', document.querySelectorAll('.nav-item')[1])" class="relative bg-gradient-to-r from-zinc-900 via-stone-900 to-zinc-800 rounded-2xl p-4 text-white shadow-md mb-5 cursor-pointer overflow-hidden transition-transform active:scale-[0.98] border border-zinc-800">
-                    <div class="flex justify-between items-center relative z-10">
                         <div>
-                            <span class="bg-white/20 text-zinc-200 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm border border-white/10">SHOPPING MARKET</span>
-                            <h3 class="font-bold text-sm mt-1 mb-0.5">KDB 페이 쇼핑 마켓</h3>
-                            <p class="text-[11px] text-zinc-400">쇼핑관으로 이동하여 상품을 확인해 보세요</p>
+                            <div class="font-bold text-xs text-zinc-900">계좌 개설하기</div>
+                            <div class="text-[10px] text-zinc-400 mt-0.5">새로운 내 계좌 만들기</div>
                         </div>
-                        <div class="w-14 h-14 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md shrink-0 ml-2 shadow-inner border border-white/10">
-                            <i class="fa-solid fa-bag-shopping text-2xl text-white"></i>
-                        </div>
+                    </div>
+                    <div onclick="openAccountSelectorModal()" class="text-center text-xs font-semibold text-zinc-400 py-3 border-t border-zinc-100 cursor-pointer hover:bg-zinc-50 hover:text-zinc-600 transition-colors">
+                        자산 모두 보기
                     </div>
                 </div>
 
-                <div class="flex justify-between items-center mb-3 px-1">
-                    <h3 class="font-bold text-base text-zinc-900">최근 거래 내역</h3>
-                    <span id="tx-count-badge" class="text-xs text-zinc-500 font-medium">0건</span>
+                <div class="bg-white rounded-2xl px-4 py-3.5 flex items-center justify-between shadow-sm">
+                    <div>
+                        <div class="font-bold text-sm text-zinc-900">이번달에 쓴 돈</div>
+                        <div id="home-month-spend" class="text-[11px] text-zinc-400 mt-0.5">0원</div>
+                    </div>
+                    <button onclick="openTransactionHistoryModal()" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors">내역</button>
                 </div>
 
-                <div id="empty-tx-state" class="bg-white rounded-2xl p-8 border border-zinc-200/80 shadow-sm flex flex-col items-center justify-center text-center">
-                    <div class="w-12 h-12 bg-zinc-100 text-zinc-400 rounded-full flex items-center justify-center mb-3 text-xl border border-zinc-200">
+                <div class="bg-white rounded-2xl p-4 shadow-sm">
+                    <div class="font-bold text-sm text-zinc-900 mb-3">자주 찾는 서비스</div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button onclick="openTransferModal()" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
+                            <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            </div>
+                            <span class="text-[11px] font-semibold text-zinc-700">이체</span>
+                        </button>
+                        <button onclick="switchTab('pay', document.querySelectorAll('.nav-item')[2])" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
+                            <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
+                                <i class="fa-solid fa-qrcode"></i>
+                            </div>
+                            <span class="text-[11px] font-semibold text-zinc-700">결제</span>
+                        </button>
+                        <button onclick="openDepositModal()" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
+                            <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
+                                <i class="fa-solid fa-plus"></i>
+                            </div>
+                            <span class="text-[11px] font-semibold text-zinc-700">채우기</span>
+                        </button>
+                        <button onclick="switchTab('benefits', document.querySelectorAll('.nav-item')[3])" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
+                            <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
+                                <i class="fa-solid fa-gift"></i>
+                            </div>
+                            <span class="text-[11px] font-semibold text-zinc-700">혜택</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center px-1 pt-1">
+                    <h3 class="font-bold text-sm text-zinc-900">최근 거래 내역</h3>
+                    <span id="tx-count-badge" class="text-xs text-zinc-400 font-medium">0건</span>
+                </div>
+
+                <div id="empty-tx-state" class="bg-white rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center text-center">
+                    <div class="w-12 h-12 bg-zinc-100 text-zinc-400 rounded-full flex items-center justify-center mb-3 text-xl">
                         <i class="fa-solid fa-receipt"></i>
                     </div>
                     <p class="text-zinc-700 font-semibold text-sm">거래 내역이 없습니다</p>
                     <p class="text-zinc-400 text-xs mt-0.5">이체 및 결제를 진행해 보세요.</p>
                 </div>
 
-                <div id="tx-list" class="hidden flex flex-col gap-2.5 pb-2"></div>
-                <div id="tx-more-btn-wrap" class="hidden pb-4">
-                    <button onclick="openTransactionHistoryModal()" class="w-full text-center text-xs font-semibold text-zinc-500 hover:text-zinc-800 bg-white border border-zinc-200/80 rounded-2xl py-3 shadow-sm transition-colors">
+                <div id="tx-list" class="hidden flex flex-col gap-2"></div>
+                <div id="tx-more-btn-wrap" class="hidden">
+                    <button onclick="openTransactionHistoryModal()" class="w-full text-center text-xs font-semibold text-zinc-500 hover:text-zinc-800 bg-white rounded-2xl py-3 shadow-sm transition-colors">
                         더보기 <i class="fa-solid fa-chevron-down text-[10px] ml-1"></i>
                     </button>
                 </div>
@@ -1432,7 +1426,6 @@
                 name: 'KDB 성수 디저트 카페',
                 category: '카페/디저트',
                 bizNo: '128-81-04921',
-                pin: '1234',
                 accountNo: '110-384-910283',
                 unsettledBalance: 0,
                 totalSales: 0,
@@ -1492,7 +1485,6 @@
                         alias: user.alias,
                         discord: user.discord,
                         uid: user.uid,
-                        pin: user.pin,
                         points: user.points || 0,
                         current_account_id: user.currentAccountId || null,
                         attendance_history: user.attendanceHistory || {},
@@ -1534,7 +1526,6 @@
                         name: m.name,
                         category: m.category,
                         biz_no: m.bizNo,
-                        pin: m.pin,
                         account_no: m.accountNo,
                         unsettled_balance: m.unsettledBalance || 0,
                         total_sales: m.totalSales || 0,
@@ -1571,8 +1562,8 @@
                 { data: merchants, error: mErr },
                 { data: sales, error: sErr }
             ] = await Promise.all([
-                sbClient.from('users').select('*'),
-                sbClient.from('merchants').select('*'),
+                sbClient.from('users_public').select('*'),
+                sbClient.from('merchants_public').select('*'),
                 sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false })
             ]);
 
@@ -1592,7 +1583,6 @@
                 alias: u.alias,
                 discord: u.discord,
                 uid: u.uid,
-                pin: u.pin,
                 points: u.points || 0,
                 currentAccountId: u.current_account_id,
                 accounts: [],
@@ -1609,7 +1599,6 @@
                     name: m.name,
                     category: m.category,
                     bizNo: m.biz_no,
-                    pin: m.pin,
                     accountNo: m.account_no,
                     unsettledBalance: m.unsettled_balance || 0,
                     totalSales: m.total_sales || 0,
@@ -1971,17 +1960,35 @@
                     return;
                 }
 
-                const { data: freshAcc } = await sbClient.from('accounts').select('balance').eq('id', activeAcc.id).single();
-                const latestBalance = freshAcc ? freshAcc.balance : activeAcc.balance;
-
-                if (latestBalance < req.amount) {
-                    await sbClient.from('payment_requests').update({ status: 'rejected' }).eq('id', req.id);
-                    showToast('계좌 잔액이 부족하여 결제가 취소되었습니다.');
+                let debitResult;
+                try {
+                    const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
+                        p_account_id: activeAcc.id,
+                        p_delta: -req.amount
+                    });
+                    if (rpcErr) {
+                        console.error('결제 잔액 차감 오류:', rpcErr);
+                        showToast('결제 처리 중 오류가 발생했습니다.');
+                        return;
+                    }
+                    debitResult = rpcData && rpcData[0];
+                } catch (err) {
+                    console.error('결제 잔액 차감 오류:', err);
+                    showToast('결제 처리 중 오류가 발생했습니다.');
                     return;
                 }
 
-                activeAcc.balance = latestBalance - req.amount;
-                await sbClient.from('accounts').update({ balance: activeAcc.balance }).eq('id', activeAcc.id);
+                if (!debitResult || !debitResult.ok) {
+                    await sbClient.from('payment_requests').update({ status: 'rejected' }).eq('id', req.id);
+                    const reasonMsg = {
+                        insufficient_balance: '계좌 잔액이 부족하여 결제가 취소되었습니다.',
+                        frozen: '정지된 계좌라 결제할 수 없습니다.'
+                    }[debitResult && debitResult.reason] || '결제를 처리할 수 없습니다.';
+                    showToast(reasonMsg);
+                    return;
+                }
+
+                activeAcc.balance = debitResult.new_balance;
 
                 user.transactions.unshift({
                     id: genId('tx'),
@@ -2403,23 +2410,60 @@
         }
 
         async function verifyPinAndLogin() {
-            const targetUser = state.users.find(u => u.id === state.selectedLoginUserId);
-            if (targetUser && targetUser.pin === state.enteredPin) {
-                state.currentUserId = targetUser.id;
-                addKnownAccountId(targetUser.id);
-                showToast('계좌 정보를 불러오는 중입니다...');
-                await loadUserFinancialData(targetUser.id);
-                saveAppData();
-                subscribeToRealtimeUpdates();
-                document.getElementById('auth-screen').classList.add('hidden-auth');
-                renderApp();
-                showToast(targetUser.alias + '님 환영합니다!');
-                runDueAutoTransfers();
-            } else {
+            const targetUserId = state.selectedLoginUserId;
+            if (!targetUserId) return;
+
+            let row;
+            try {
+                const { data, error } = await sbClient.rpc('verify_user_login', {
+                    p_user_id: targetUserId,
+                    p_pin: state.enteredPin
+                });
+                if (error) {
+                    console.error('로그인 확인 오류:', error);
+                    showToast('로그인 확인 중 오류가 발생했습니다.');
+                    return;
+                }
+                row = data && data[0];
+            } catch (err) {
+                console.error('로그인 확인 오류:', err);
+                showToast('로그인 확인 중 오류가 발생했습니다.');
+                return;
+            }
+
+            if (!row) {
                 showToast('PIN 번호가 일치하지 않습니다.');
                 state.enteredPin = '';
                 updatePinDots();
+                return;
             }
+
+            
+            let localUser = state.users.find(u => u.id === row.id);
+            if (!localUser) {
+                localUser = { id: row.id, accounts: [], transactions: [] };
+                state.users.push(localUser);
+            }
+            localUser.alias = row.alias;
+            localUser.discord = row.discord;
+            localUser.uid = row.uid;
+            localUser.points = row.points || 0;
+            localUser.currentAccountId = row.current_account_id;
+            localUser.attendanceHistory = row.attendance_history || {};
+            localUser.purchasedItems = row.purchased_items || [];
+            localUser.isAdmin = row.is_admin || false;
+            localUser.isFrozen = row.is_frozen || false;
+
+            state.currentUserId = row.id;
+            addKnownAccountId(row.id);
+            showToast('계좌 정보를 불러오는 중입니다...');
+            await loadUserFinancialData(row.id);
+            saveAppData();
+            subscribeToRealtimeUpdates();
+            document.getElementById('auth-screen').classList.add('hidden-auth');
+            renderApp();
+            showToast(row.alias + '님 환영합니다!');
+            runDueAutoTransfers();
         }
 
         async function executeSignup() {
@@ -2446,42 +2490,34 @@
             const signupBtn = document.getElementById('signup-submit-btn');
             if (signupBtn) signupBtn.disabled = true;
 
+            let newUserId;
             try {
-                const { data: existing, error: checkErr } = await sbClient
-                    .from('users')
-                    .select('id, discord, uid')
-                    .or('discord.eq.' + discord + ',uid.eq.' + uid);
-
-                if (checkErr) {
-                    console.error('중복 체크 오류:', checkErr);
-                    showToast('가입 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                const { data, error } = await sbClient.rpc('signup_user', {
+                    p_alias: alias, p_discord: discord, p_uid: uid, p_pin: pin
+                });
+                if (error) {
+                    const msg = error.message || '';
+                    if (msg.includes('discord_taken')) {
+                        showToast('이미 가입된 디스코드 ID입니다.');
+                    } else if (msg.includes('uid_taken')) {
+                        showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
+                    } else {
+                        console.error('회원가입 오류:', error);
+                        showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                    }
                     if (signupBtn) signupBtn.disabled = false;
                     return;
                 }
-
-                const discordTaken = (existing || []).some(u => u.discord === discord);
-                const uidTaken = (existing || []).some(u => u.uid === uid);
-
-                if (discordTaken) {
-                    showToast('이미 가입된 디스코드 ID입니다.');
-                    if (signupBtn) signupBtn.disabled = false;
-                    return;
-                }
-                if (uidTaken) {
-                    showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
-                    if (signupBtn) signupBtn.disabled = false;
-                    return;
-                }
+                newUserId = data;
             } catch (err) {
-                console.error('중복 체크 오류:', err);
-                showToast('가입 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                console.error('회원가입 오류:', err);
+                showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 if (signupBtn) signupBtn.disabled = false;
                 return;
             }
 
             if (signupBtn) signupBtn.disabled = false;
 
-            const newUserId = genId('usr');
             const newAccountId = genId('acc');
             const newAccNo = '110-' + Math.floor(100 + Math.random() * 900) + '-' + Math.floor(100000 + Math.random() * 900000);
 
@@ -2490,7 +2526,6 @@
                 alias: alias,
                 discord: discord,
                 uid: uid,
-                pin: pin,
                 points: 1000,
                 currentAccountId: newAccountId,
                 accounts: [
@@ -2559,9 +2594,65 @@
             document.getElementById('shop-user-points').innerText = formatNumber(user.points || 0);
             document.getElementById('user-points-display').innerText = formatNumber(user.points || 0);
 
+            renderHomeAccountList();
+            renderHomeMonthSpend();
             renderTransactions();
             renderAttendanceWidget();
             renderShopGrid();
+        }
+
+        function renderHomeAccountList() {
+            const user = getCurrentUser();
+            const container = document.getElementById('home-account-list');
+            if (!user || !container) return;
+
+            if (!user.accounts || user.accounts.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = user.accounts.map((acc, idx) => {
+                const borderClass = idx === 0 ? '' : 'border-t border-zinc-100';
+                return '<div class="flex items-center justify-between px-4 py-3.5 ' + borderClass + '">' +
+                    '<div class="flex items-center gap-3 min-w-0">' +
+                        '<div class="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">' +
+                            '<i class="fa-solid fa-won-sign text-white text-xs"></i>' +
+                        '</div>' +
+                        '<div class="min-w-0">' +
+                            '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원</div>' +
+                            '<div class="text-[11px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(acc.name) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<button onclick="quickTransferFromAccount(\'' + acc.id + '\')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors shrink-0 ml-2">송금</button>' +
+                '</div>';
+            }).join('');
+        }
+
+        function quickTransferFromAccount(accId) {
+            const user = getCurrentUser();
+            if (!user) return;
+            if (user.currentAccountId !== accId) {
+                user.currentAccountId = accId;
+                saveAppData();
+                renderApp();
+            }
+            openTransferModal();
+        }
+
+        function renderHomeMonthSpend() {
+            const user = getCurrentUser();
+            const elem = document.getElementById('home-month-spend');
+            if (!user || !elem) return;
+
+            const now = new Date();
+            const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            let total = 0;
+            (user.transactions || []).forEach(tx => {
+                if (tx.amount < 0 && tx.createdAt && tx.createdAt.slice(0, 7) === ym) {
+                    total += -tx.amount;
+                }
+            });
+            elem.innerText = formatNumber(total) + '원';
         }
 
         
@@ -2697,7 +2788,7 @@
                 if (accByNo && accByNo.length) {
                     const acc = accByNo[0];
                     const { data: owner, error: ownerErr } = await sbClient
-                        .from('users')
+                        .from('users_public')
                         .select('id, alias')
                         .eq('id', acc.user_id)
                         .single();
@@ -2707,7 +2798,7 @@
                 }
 
                 const { data: nameMatches, error: nameErr } = await sbClient
-                    .from('users')
+                    .from('users_public')
                     .select('id, alias, current_account_id')
                     .eq('alias', query);
 
@@ -2903,51 +2994,52 @@
             const confirmBtn = document.getElementById('transfer-confirm-btn');
             if (confirmBtn) {
                 confirmBtn.disabled = true;
-                confirmBtn.innerText = '확인 중...';
+                confirmBtn.innerText = '이체 처리 중...';
             }
 
+            let result;
             try {
-                const { data: freshSenderAcc, error: senderErr } = await sbClient.from('accounts').select('balance, is_frozen').eq('id', activeAcc.id).single();
-                if (senderErr || !freshSenderAcc) {
-                    showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
+                const { data, error } = await sbClient.rpc('transfer_funds', {
+                    p_from_account: activeAcc.id,
+                    p_to_account: match.accountId,
+                    p_amount: amount
+                });
+                if (error) {
+                    console.error('이체 처리 오류:', error);
+                    showToast('이체 처리 중 오류가 발생했습니다.');
                     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
                     return;
                 }
-                activeAcc.isFrozen = freshSenderAcc.is_frozen || false;
-                activeAcc.balance = freshSenderAcc.balance;
-
-                if (activeAcc.isFrozen) {
-                    showToast('정지된 계좌입니다. 이체를 이용할 수 없습니다.');
-                    closeModal('modal-transfer-confirm');
-                    renderApp();
-                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
-                    return;
-                }
-
-                const { data: freshRecipientAcc } = await sbClient.from('accounts').select('is_frozen').eq('id', match.accountId).single();
-                if (freshRecipientAcc && freshRecipientAcc.is_frozen) {
-                    showToast('받는 분의 계좌가 정지되어 이체할 수 없습니다.');
-                    closeModal('modal-transfer-confirm');
-                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
-                    return;
-                }
+                result = data && data[0];
             } catch (err) {
-                console.error('이체 최종 확인 오류:', err);
-                showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
+                console.error('이체 처리 오류:', err);
+                showToast('이체 처리 중 오류가 발생했습니다.');
                 if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
                 return;
             }
 
-            if (activeAcc.balance < amount) {
-                showToast('계좌 잔액이 부족합니다.');
+            if (!result || !result.ok) {
+                const reasonMsg = {
+                    invalid_amount: '이체 금액이 올바르지 않습니다.',
+                    same_account: '본인의 같은 계좌로는 이체할 수 없습니다.',
+                    from_not_found: '보내는 계좌 정보를 확인할 수 없습니다.',
+                    to_not_found: '받는 계좌 정보를 확인할 수 없습니다.',
+                    from_frozen: '정지된 계좌입니다. 이체를 이용할 수 없습니다.',
+                    to_frozen: '받는 분의 계좌가 정지되어 이체할 수 없습니다.',
+                    insufficient_balance: '계좌 잔액이 부족합니다.'
+                }[result && result.reason] || '이체를 처리할 수 없습니다.';
+
+                showToast(reasonMsg);
+                if (result && result.from_balance !== null && result.from_balance !== undefined) {
+                    activeAcc.balance = result.from_balance;
+                }
                 closeModal('modal-transfer-confirm');
+                renderApp();
                 if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '이체하기'; }
                 return;
             }
-            if (confirmBtn) confirmBtn.innerText = '이체 처리 중...';
 
-            
-            activeAcc.balance -= amount;
+            activeAcc.balance = result.from_balance;
             user.transactions.unshift({
                 id: genId('tx'),
                 accountId: activeAcc.id,
@@ -2961,11 +3053,7 @@
             });
             saveAppData();
 
-            
             try {
-                const { data: freshAcc } = await sbClient.from('accounts').select('balance').eq('id', match.accountId).single();
-                const newBalance = (freshAcc ? freshAcc.balance : match.balance) + amount;
-                await sbClient.from('accounts').update({ balance: newBalance }).eq('id', match.accountId);
                 await sbClient.from('transactions').insert({
                     id: genId('tx'),
                     account_id: match.accountId,
@@ -2990,8 +3078,7 @@
                     }).then(() => {}, (err) => console.error('관리자 알림 생성 오류:', err));
                 }
             } catch (err) {
-                console.error('수신자 입금 반영 오류:', err);
-                showToast('상대방 계좌 입금 반영 중 오류가 발생했습니다. 관리자에게 문의해 주세요.');
+                console.error('수신자 입금 알림 반영 오류:', err);
             }
 
             state.pendingTransfer = null;
@@ -3312,30 +3399,65 @@
             });
         }
 
-        function verifyMerchantPinLogin() {
-            const targetMch = state.merchants.find(m => m.id === state.selectedMerchantLoginId);
-            if (targetMch && targetMch.pin === state.enteredMerchantPin) {
-                if (targetMch.status === 'pending') {
-                    showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
-                    state.enteredMerchantPin = '';
-                    updateMerchantPinDots();
+        async function verifyMerchantPinLogin() {
+            const targetMchId = state.selectedMerchantLoginId;
+            if (!targetMchId) return;
+
+            let row;
+            try {
+                const { data, error } = await sbClient.rpc('verify_merchant_login', {
+                    p_merchant_id: targetMchId,
+                    p_pin: state.enteredMerchantPin
+                });
+                if (error) {
+                    console.error('가맹점 로그인 확인 오류:', error);
+                    showToast('로그인 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                if (targetMch.status === 'rejected') {
-                    showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
-                    state.enteredMerchantPin = '';
-                    updateMerchantPinDots();
-                    return;
-                }
-                state.currentMerchantId = targetMch.id;
-                saveSession();
-                showToast('\'' + targetMch.name + '\' 가맹점으로 접속되었습니다.');
-                renderMerchantDashboard();
-            } else {
+                row = data && data[0];
+            } catch (err) {
+                console.error('가맹점 로그인 확인 오류:', err);
+                showToast('로그인 확인 중 오류가 발생했습니다.');
+                return;
+            }
+
+            if (!row) {
                 showToast('가맹점 보안 PIN 번호가 일치하지 않습니다.');
                 state.enteredMerchantPin = '';
                 updateMerchantPinDots();
+                return;
             }
+
+            let localMch = state.merchants.find(m => m.id === row.id);
+            if (!localMch) {
+                localMch = { id: row.id, salesHistory: [] };
+                state.merchants.push(localMch);
+            }
+            localMch.name = row.name;
+            localMch.category = row.category;
+            localMch.bizNo = row.biz_no;
+            localMch.accountNo = row.account_no;
+            localMch.unsettledBalance = row.unsettled_balance || 0;
+            localMch.totalSales = row.total_sales || 0;
+            localMch.status = row.status;
+
+            if (localMch.status === 'pending') {
+                showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
+                state.enteredMerchantPin = '';
+                updateMerchantPinDots();
+                return;
+            }
+            if (localMch.status === 'rejected') {
+                showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
+                state.enteredMerchantPin = '';
+                updateMerchantPinDots();
+                return;
+            }
+
+            state.currentMerchantId = localMch.id;
+            saveSession();
+            showToast('\'' + localMch.name + '\' 가맹점으로 접속되었습니다.');
+            renderMerchantDashboard();
         }
 
         async function executeMerchantSignup() {
@@ -3359,26 +3481,25 @@
             const mchSignupBtn = document.getElementById('mch-signup-submit-btn');
             if (mchSignupBtn) mchSignupBtn.disabled = true;
 
+            let newMchId;
             try {
-                const { data: existing, error: checkErr } = await sbClient
-                    .from('merchants')
-                    .select('id, biz_no')
-                    .eq('biz_no', biz);
-
-                if (checkErr) {
-                    console.error('중복 체크 오류:', checkErr);
-                    showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                const { data, error } = await sbClient.rpc('signup_merchant', {
+                    p_name: name, p_category: category, p_biz_no: biz, p_account_no: acc, p_pin: pin
+                });
+                if (error) {
+                    const msg = error.message || '';
+                    if (msg.includes('biz_no_taken')) {
+                        showToast('이미 등록된 사업자번호입니다.');
+                    } else {
+                        console.error('가맹점 가입 오류:', error);
+                        showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
+                    }
                     if (mchSignupBtn) mchSignupBtn.disabled = false;
                     return;
                 }
-
-                if (existing && existing.length > 0) {
-                    showToast('이미 등록된 사업자번호입니다.');
-                    if (mchSignupBtn) mchSignupBtn.disabled = false;
-                    return;
-                }
+                newMchId = data;
             } catch (err) {
-                console.error('중복 체크 오류:', err);
+                console.error('가맹점 가입 오류:', err);
                 showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
                 if (mchSignupBtn) mchSignupBtn.disabled = false;
                 return;
@@ -3387,11 +3508,10 @@
             if (mchSignupBtn) mchSignupBtn.disabled = false;
 
             const newMerchant = {
-                id: genId('mch'),
+                id: newMchId,
                 name: name,
                 category: category,
                 bizNo: biz,
-                pin: pin,
                 accountNo: acc,
                 unsettledBalance: 0,
                 totalSales: 0,
@@ -3572,7 +3692,7 @@
             let customerUser, customerAcc;
             try {
                 const [{ data: uData, error: uErr }, { data: aData, error: aErr }] = await Promise.all([
-                    sbClient.from('users').select('*').eq('id', codeRow.user_id).single(),
+                    sbClient.from('users_public').select('*').eq('id', codeRow.user_id).single(),
                     sbClient.from('accounts').select('*').eq('id', codeRow.account_id).single()
                 ]);
                 if (uErr || aErr || !uData || !aData) {
@@ -3743,7 +3863,6 @@
             }
 
             const amt = mch.unsettledBalance;
-            const normalizedTarget = mch.accountNo.replace(/[\s-]/g, '');
 
             const settleBtn = document.getElementById('mch-settle-btn');
             const settleBtnOriginalHtml = settleBtn ? settleBtn.innerHTML : '';
@@ -3754,13 +3873,15 @@
 
             let targetAcc;
             try {
-                const { data: accounts, error: accErr } = await sbClient.from('accounts').select('*');
+                const { data: accData, error: accErr } = await sbClient.rpc('find_account_by_number', {
+                    p_query: mch.accountNo
+                });
                 if (accErr) {
                     showToast('정산 계좌 조회 중 오류가 발생했습니다.');
                     if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
                     return;
                 }
-                targetAcc = (accounts || []).find(a => a.account_no.replace(/[\s-]/g, '') === normalizedTarget);
+                targetAcc = accData && accData[0];
             } catch (err) {
                 console.error('정산 계좌 조회 오류:', err);
                 showToast('정산 계좌 조회 중 오류가 발생했습니다.');
@@ -3781,9 +3902,17 @@
             }
 
             try {
-                const { data: freshAcc } = await sbClient.from('accounts').select('balance').eq('id', targetAcc.id).single();
-                const newBalance = (freshAcc ? freshAcc.balance : targetAcc.balance) + amt;
-                await sbClient.from('accounts').update({ balance: newBalance }).eq('id', targetAcc.id);
+                const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
+                    p_account_id: targetAcc.id,
+                    p_delta: amt
+                });
+                const adjustResult = rpcData && rpcData[0];
+                if (rpcErr || !adjustResult || !adjustResult.ok) {
+                    console.error('정산 잔액 반영 오류:', rpcErr || adjustResult);
+                    showToast('정산 계좌에 입금하지 못했습니다.');
+                    if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
+                    return;
+                }
 
                 await sbClient.from('transactions').insert({
                     id: genId('tx'),
@@ -3977,7 +4106,7 @@
                 }
 
                 const userIds = [...new Set(pending.map(r => r.user_id))];
-                const { data: users } = await sbClient.from('users').select('id, alias, discord').in('id', userIds);
+                const { data: users } = await sbClient.from('users_public').select('id, alias, discord').in('id', userIds);
 
                 listEl.innerHTML = pending.map(r => {
                     const u = (users || []).find(x => x.id === r.user_id);
@@ -4021,15 +4150,18 @@
                 const req = updatedReq[0];
 
                 if (decision === 'approved') {
-                    const { data: freshAcc, error: accErr } = await sbClient.from('accounts').select('balance').eq('id', req.account_id).single();
-                    if (accErr || !freshAcc) {
-                        showToast('계좌 조회 중 오류가 발생했습니다.');
+                    const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
+                        p_account_id: req.account_id,
+                        p_delta: req.amount
+                    });
+                    const adjustResult = rpcData && rpcData[0];
+                    if (rpcErr || !adjustResult || !adjustResult.ok) {
+                        console.error('충전 잔액 반영 오류:', rpcErr || adjustResult);
+                        showToast('계좌에 충전 금액을 반영하지 못했습니다.');
                         renderAdminTopupRequests();
                         return;
                     }
 
-                    const newBalance = freshAcc.balance + req.amount;
-                    await sbClient.from('accounts').update({ balance: newBalance }).eq('id', req.account_id);
                     await sbClient.from('transactions').insert({
                         id: genId('tx'),
                         account_id: req.account_id,
@@ -4062,7 +4194,7 @@
 
             try {
                 const { data: pending, error } = await sbClient
-                    .from('merchants')
+                    .from('merchants_public')
                     .select('*')
                     .eq('status', 'pending')
                     .order('created_at', { ascending: false });
@@ -4117,7 +4249,7 @@
             modal.classList.remove('hidden');
 
             try {
-                const { data: user, error: uErr } = await sbClient.from('users').select('*').eq('id', userId).single();
+                const { data: user, error: uErr } = await sbClient.from('users_public').select('*').eq('id', userId).single();
                 if (uErr || !user) {
                     body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">회원 정보를 불러오지 못했습니다.</div>';
                     return;
@@ -4241,7 +4373,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('users').select('id, alias, discord, uid, current_account_id, is_frozen');
+                let query = sbClient.from('users_public').select('id, alias, discord, uid, current_account_id, is_frozen');
                 if (search && search.trim()) {
                     query = query.or('alias.ilike.%' + search.trim() + '%,discord.ilike.%' + search.trim() + '%');
                 }
@@ -4343,21 +4475,37 @@
                 return;
             }
 
+            let adjustResult;
             try {
-                const { data: freshAcc, error: accErr } = await sbClient.from('accounts').select('balance').eq('id', accountId).single();
-                if (accErr || !freshAcc) {
-                    showToast('계좌 조회 중 오류가 발생했습니다.');
+                const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
+                    p_account_id: accountId,
+                    p_delta: sign * amt,
+                    p_bypass_frozen: true
+                });
+                if (rpcErr) {
+                    console.error('잔액 조정 오류:', rpcErr);
+                    showToast('잔액 조정 중 오류가 발생했습니다.');
                     return;
                 }
+                adjustResult = rpcData && rpcData[0];
+            } catch (err) {
+                console.error('잔액 조정 오류:', err);
+                showToast('잔액 조정 중 오류가 발생했습니다.');
+                return;
+            }
 
-                const delta = sign * amt;
-                const newBalance = freshAcc.balance + delta;
-                if (newBalance < 0) {
-                    showToast('차감 후 잔액이 0원 미만이 될 수 없습니다.');
-                    return;
-                }
+            if (!adjustResult || !adjustResult.ok) {
+                const reasonMsg = {
+                    not_found: '계좌를 찾을 수 없습니다.',
+                    insufficient_balance: '차감 후 잔액이 0원 미만이 될 수 없습니다.'
+                }[adjustResult && adjustResult.reason] || '잔액을 조정할 수 없습니다.';
+                showToast(reasonMsg);
+                return;
+            }
 
-                await sbClient.from('accounts').update({ balance: newBalance }).eq('id', accountId);
+            const delta = sign * amt;
+
+            try {
                 await sbClient.from('transactions').insert({
                     id: genId('tx'),
                     account_id: accountId,
@@ -4385,7 +4533,7 @@
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('merchants').select('*');
+                let query = sbClient.from('merchants_public').select('*');
                 if (search && search.trim()) {
                     query = query.ilike('name', '%' + search.trim() + '%');
                 }
@@ -4487,9 +4635,9 @@
                     { count: pendingPaymentCount, error: ppErr },
                     { data: feeRows, error: feeErr }
                 ] = await Promise.all([
-                    sbClient.from('users').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+                    sbClient.from('users_public').select('id', { count: 'exact', head: true }),
+                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }),
+                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('transactions').select('id', { count: 'exact', head: true }),
                     sbClient.from('payment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
                     sbClient.from('merchant_sales').select('fee_amount')
@@ -5033,19 +5181,31 @@
             };
 
             try {
-                const { data: fromAcc } = await sbClient
-                    .from('accounts').select('balance, is_frozen').eq('id', row.from_account_id).single();
-                if (!fromAcc) { await markFailure('출금 계좌를 찾을 수 없습니다'); return true; }
-                if (fromAcc.is_frozen) { await markFailure('출금 계좌가 정지되었습니다'); return true; }
-                if (fromAcc.balance < amount) { await markFailure('잔액이 부족합니다'); return true; }
+                const { data: rpcData, error: rpcErr } = await sbClient.rpc('transfer_funds', {
+                    p_from_account: row.from_account_id,
+                    p_to_account: row.to_account_id,
+                    p_amount: amount
+                });
+                if (rpcErr) {
+                    console.error('자동이체 실행 오류:', rpcErr);
+                    await markFailure('처리 중 오류가 발생했습니다');
+                    return true;
+                }
 
-                const { data: toAcc } = await sbClient
-                    .from('accounts').select('balance, is_frozen').eq('id', row.to_account_id).single();
-                if (!toAcc) { await markFailure('받는 계좌를 찾을 수 없습니다'); return true; }
-                if (toAcc.is_frozen) { await markFailure('받는 분의 계좌가 정지되었습니다'); return true; }
-
-                await sbClient.from('accounts').update({ balance: fromAcc.balance - amount }).eq('id', row.from_account_id);
-                await sbClient.from('accounts').update({ balance: toAcc.balance + amount }).eq('id', row.to_account_id);
+                const result = rpcData && rpcData[0];
+                if (!result || !result.ok) {
+                    const reasonMsg = {
+                        from_not_found: '출금 계좌를 찾을 수 없습니다',
+                        to_not_found: '받는 계좌를 찾을 수 없습니다',
+                        from_frozen: '출금 계좌가 정지되었습니다',
+                        to_frozen: '받는 분의 계좌가 정지되었습니다',
+                        insufficient_balance: '잔액이 부족합니다',
+                        same_account: '동일 계좌로는 자동이체할 수 없습니다',
+                        invalid_amount: '이체 금액이 올바르지 않습니다'
+                    }[result && result.reason] || '자동이체를 처리할 수 없습니다';
+                    await markFailure(reasonMsg);
+                    return true;
+                }
 
                 await sbClient.from('transactions').insert([
                     {
