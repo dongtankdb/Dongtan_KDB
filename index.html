@@ -1761,6 +1761,11 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
         const SUPABASE_KEY = 'sb_publishable_w3iECjE7i0Y2tPtPDAqaAA_pPHDDXVi';
         const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // Discord 본인인증 서버 주소
+        // 로컬 테스트: http://localhost:3000
+        // 실제 배포: 반드시 HTTPS로 공개된 인증 서버 주소로 변경
+        const VERIFICATION_API_BASE_URL = 'http://localhost:3000';
+
         function pickRpcRow(data) {
             const row = Array.isArray(data) ? data[0] : data;
             if (!row || typeof row !== 'object') return null;
@@ -2765,15 +2770,44 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             });
         }
 
+        async function requestDiscordVerification(userId) {
+            try {
+                const response = await fetch(VERIFICATION_API_BASE_URL + '/api/request-verification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok || !result.ok) {
+                    console.error('Discord 본인인증 요청 오류:', result);
+                    showToast(result.message || 'Discord 본인인증 요청에 실패했습니다.');
+                    return false;
+                }
+
+                showToast('Discord DM으로 본인인증 링크를 보냈습니다.');
+                return true;
+            } catch (err) {
+                console.error('Discord 본인인증 서버 연결 오류:', err);
+                showToast('본인인증 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요.');
+                return false;
+            }
+        }
+
         async function verifyPinAndLogin() {
             const targetUserId = state.selectedLoginUserId;
             if (!targetUserId) return;
 
+            const enteredPin = state.enteredPin;
+            if (!/^\d{4}$/.test(enteredPin)) return;
+
             let row;
             try {
+                // 1) 먼저 정상 PIN인지 확인
                 const { data, error } = await sbClient.rpc('verify_user_login', {
                     p_user_id: targetUserId,
-                    p_pin: state.enteredPin
+                    p_pin: enteredPin
                 });
                 if (error) {
                     console.error('로그인 확인 오류:', error);
@@ -2788,10 +2822,52 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 return;
             }
 
+            // 2) PIN이 틀렸으면 서버에서 실패 횟수를 원자적으로 증가
             if (!row) {
-                showToast('PIN 번호가 일치하지 않습니다.');
                 state.enteredPin = '';
                 updatePinDots();
+
+                try {
+                    const { data: securityData, error: securityError } = await sbClient.rpc('register_failed_login', {
+                        p_user_id: targetUserId
+                    });
+
+                    if (securityError) {
+                        console.error('로그인 실패 횟수 기록 오류:', securityError);
+                        showToast('PIN 번호가 일치하지 않습니다.');
+                        return;
+                    }
+
+                    const security = Array.isArray(securityData) ? securityData[0] : securityData;
+                    const attemptsRemaining = Number(security?.attempts_remaining ?? 0);
+                    const locked = !!security?.locked;
+
+                    if (locked) {
+                        showToast('로그인 5회 실패로 계정이 잠겼습니다. Discord DM을 확인해 주세요.');
+                        await requestDiscordVerification(targetUserId);
+                    } else {
+                        showToast('PIN 번호가 일치하지 않습니다. 남은 시도: ' + attemptsRemaining + '회');
+                    }
+                } catch (err) {
+                    console.error('로그인 실패 처리 오류:', err);
+                    showToast('PIN 번호가 일치하지 않습니다.');
+                }
+                return;
+            }
+
+            // 3) 정상 로그인 성공 시 실패 횟수를 초기화
+            try {
+                const { error: resetError } = await sbClient.rpc('reset_login_attempts', {
+                    p_user_id: targetUserId
+                });
+                if (resetError) {
+                    console.error('로그인 실패 횟수 초기화 오류:', resetError);
+                    showToast('로그인 보안 상태를 초기화하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+                    return;
+                }
+            } catch (err) {
+                console.error('로그인 실패 횟수 초기화 오류:', err);
+                showToast('로그인 보안 상태를 초기화하지 못했습니다.');
                 return;
             }
 
