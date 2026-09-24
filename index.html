@@ -4,6 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KDB Pay Fintech App</title>
+    <script>
+        /* 저장된 화면 설정(다크 모드 / 글씨 크기)을 렌더링 전에 즉시 적용 */
+        (function () {
+            try {
+                var s = JSON.parse(localStorage.getItem('kdb_pay_settings_v1') || '{}');
+                var root = document.documentElement;
+                var theme = s.theme === 'dark' ? 'dark' : 'light';
+                var fs = (s.fontSize === 'sm' || s.fontSize === 'lg') ? s.fontSize : 'md';
+                if (theme === 'dark') root.classList.add('dark');
+                root.setAttribute('data-theme', theme);
+                root.setAttribute('data-fs', fs);
+            } catch (e) {}
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -199,6 +213,148 @@
             pointer-events: none;
             transform: scale(1.02);
         }
+
+        /* ===================== 설정 화면 / 테마 / 글씨 크기 ===================== */
+        :root { --fs: 1; }
+        html[data-fs="sm"] { --fs: 0.9; }
+        html[data-fs="lg"] { --fs: 1.15; }
+
+        .settings-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 70;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transform: translateX(100%);
+            visibility: hidden;
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.28s;
+        }
+        .settings-screen.open {
+            transform: none;
+            visibility: visible;
+            transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
+        }
+        .settings-scroll { flex: 1; overflow-y: auto; padding-bottom: 40px; }
+        @media (min-width: 421px) { .settings-screen { border-radius: 28px; } }
+
+        .set-grid { display: grid; gap: 8px; }
+        .set-opt {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px; padding: 12px 6px; min-height: 76px;
+            border: 1.5px solid #e4e4e7; background: #ffffff; color: #52525b;
+            border-radius: 14px; cursor: pointer; transition: all 0.15s ease;
+        }
+        .set-opt:active { transform: scale(0.97); }
+        .set-opt.active { border-color: #09090b; background: #09090b; color: #ffffff; }
+        .fs-sample { line-height: 1; font-weight: 700; }
+        .fs-sample.s-sm { font-size: 14px; }
+        .fs-sample.s-md { font-size: 18px; }
+        .fs-sample.s-lg { font-size: 23px; }
+
+        html.dark { color-scheme: dark; }
+        html.dark body { background-color: #000000; color: #f4f4f5; }
+        html.dark #app-container { background-color: #0a0a0b; }
+        html.dark .tab-content { background-color: #0a0a0b !important; }
+        html.dark #tab-home > .sticky { background: #0a0a0b !important; }
+        html.dark .settings-screen { background: #0a0a0b; }
+        html.dark .nav-item.active, html.dark .nav-item.active i { color: #fafafa; }
+        html.dark .header-btn:active { background-color: #222226; }
+        html.dark .keypad-btn:active:not(#auth-screen *) { background-color: #2d2d32; }
+        html.dark input, html.dark select, html.dark textarea { color: #f4f4f5; }
+        html.dark ::placeholder { color: #6b6b73; }
+        html.dark .set-opt { border-color: #2e2e34; background: #161618; color: #a1a1aa; }
+        html.dark .set-opt.active { border-color: #f4f4f5; background: #f4f4f5; color: #09090b; }
+        html.dark .bg-gradient-to-br.from-zinc-900,
+        html.dark .bg-gradient-to-r.from-zinc-900 { outline: 1px solid rgba(255,255,255,0.08); outline-offset: -1px; }
+
+/* ===== 다크 모드: 앱에서 사용하는 색상 클래스 매핑 (로그인 화면 제외) ===== */
+html.dark .bg-white:not(#auth-screen *){background-color:#161618!important}
+html.dark .bg-white\/90:not(#auth-screen *){background-color:rgba(22,22,24,.9)!important}
+html.dark .bg-white\/95:not(#auth-screen *){background-color:rgba(22,22,24,.95)!important}
+html.dark .bg-zinc-50:not(#auth-screen *){background-color:#1c1c20!important}
+html.dark .bg-zinc-100:not(#auth-screen *){background-color:#222226!important}
+html.dark .bg-zinc-200:not(#auth-screen *){background-color:#2d2d32!important}
+html.dark .bg-zinc-300:not(#auth-screen *){background-color:#3f3f46!important}
+html.dark .bg-zinc-700:not(#auth-screen *){background-color:#3f3f46!important}
+html.dark .bg-zinc-800:not(#auth-screen *){background-color:#2f2f35!important}
+html.dark .bg-zinc-800\/80:not(#auth-screen *){background-color:rgba(47,47,53,.8)!important}
+html.dark .bg-zinc-900:not(#auth-screen *){background-color:#34343a!important}
+html.dark .bg-zinc-900\/50:not(#auth-screen *){background-color:rgba(52,52,58,.5)!important}
+html.dark .bg-zinc-900\/95:not(#auth-screen *){background-color:rgba(52,52,58,.95)!important}
+html.dark .bg-amber-100:not(#auth-screen *){background-color:rgba(245,158,11,.18)!important}
+html.dark .bg-blue-50:not(#auth-screen *){background-color:rgba(59,130,246,.14)!important}
+html.dark .bg-emerald-100:not(#auth-screen *){background-color:rgba(16,185,129,.18)!important}
+html.dark .bg-emerald-50:not(#auth-screen *){background-color:rgba(16,185,129,.12)!important}
+html.dark .bg-indigo-100:not(#auth-screen *){background-color:rgba(99,102,241,.2)!important}
+html.dark .bg-orange-50:not(#auth-screen *){background-color:rgba(249,115,22,.13)!important}
+html.dark .bg-red-100:not(#auth-screen *){background-color:rgba(239,68,68,.2)!important}
+html.dark .bg-red-50:not(#auth-screen *){background-color:rgba(239,68,68,.12)!important}
+html.dark .hover\:bg-black:hover:not(#auth-screen *){background-color:#46464d!important}
+html.dark .hover\:bg-zinc-50:hover:not(#auth-screen *){background-color:#222226!important}
+html.dark .hover\:bg-zinc-200:hover:not(#auth-screen *){background-color:#38383e!important}
+html.dark .hover\:bg-zinc-700:hover:not(#auth-screen *){background-color:#52525b!important}
+html.dark .hover\:bg-zinc-800:hover:not(#auth-screen *){background-color:#46464d!important}
+html.dark .hover\:bg-red-50:hover:not(#auth-screen *){background-color:rgba(239,68,68,.12)!important}
+html.dark .hover\:bg-red-100:hover:not(#auth-screen *){background-color:rgba(239,68,68,.2)!important}
+html.dark .text-zinc-950:not(#auth-screen *){color:#fafafa!important}
+html.dark .text-zinc-900:not(#auth-screen *){color:#f4f4f5!important}
+html.dark .text-zinc-800:not(#auth-screen *){color:#e9e9ec!important}
+html.dark .text-zinc-700:not(#auth-screen *){color:#d8d8dc!important}
+html.dark .text-zinc-600:not(#auth-screen *){color:#bcbcc4!important}
+html.dark .text-zinc-500:not(#auth-screen *){color:#a1a1aa!important}
+html.dark .text-zinc-400:not(#auth-screen *){color:#8a8a93!important}
+html.dark .text-blue-900:not(#auth-screen *){color:#bfdbfe!important}
+html.dark .text-blue-500:not(#auth-screen *){color:#60a5fa!important}
+html.dark .text-emerald-700:not(#auth-screen *){color:#6ee7b7!important}
+html.dark .text-emerald-600:not(#auth-screen *){color:#34d399!important}
+html.dark .text-amber-700:not(#auth-screen *){color:#fcd34d!important}
+html.dark .text-amber-600:not(#auth-screen *){color:#fbbf24!important}
+html.dark .text-red-700:not(#auth-screen *){color:#fca5a5!important}
+html.dark .text-red-600:not(#auth-screen *){color:#f87171!important}
+html.dark .text-red-500:not(#auth-screen *){color:#f87171!important}
+html.dark .text-indigo-700:not(#auth-screen *){color:#c7d2fe!important}
+html.dark .text-indigo-500:not(#auth-screen *){color:#818cf8!important}
+html.dark .text-orange-500:not(#auth-screen *){color:#fb923c!important}
+html.dark .hover\:text-zinc-600:hover:not(#auth-screen *){color:#d4d4d8!important}
+html.dark .hover\:text-zinc-800:hover:not(#auth-screen *){color:#f4f4f5!important}
+html.dark .border-zinc-100:not(#auth-screen *){border-color:#26262b!important}
+html.dark .border-zinc-200:not(#auth-screen *){border-color:#2e2e34!important}
+html.dark .border-zinc-200\/80:not(#auth-screen *){border-color:rgba(46,46,52,.8)!important}
+html.dark .border-zinc-300:not(#auth-screen *){border-color:#3f3f46!important}
+html.dark .border-blue-100:not(#auth-screen *){border-color:rgba(59,130,246,.3)!important}
+html.dark .border-zinc-900:not(#auth-screen *){border-color:#52525b!important}
+html.dark .focus\:border-zinc-900:focus:not(#auth-screen *){border-color:#a1a1aa!important}
+html.dark i.text-zinc-300:not(#auth-screen *){color:#52525b!important}
+html.dark i.text-zinc-200:not(#auth-screen *){color:#3f3f46!important}
+html.dark .divide-zinc-100:not(#auth-screen *) > :not([hidden]) ~ :not([hidden]){border-color:#26262b!important}
+html.dark .from-zinc-100:not(#auth-screen *){--tw-gradient-from:#222226 var(--tw-gradient-from-position);--tw-gradient-to:rgba(34,34,38,0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)!important}
+html.dark .to-zinc-50:not(#auth-screen *){--tw-gradient-to:#1c1c20 var(--tw-gradient-to-position)!important}
+
+/* ===== 글씨 크기 3단계 (--fs 배율): 작게 / 보통 / 크게 ===== */
+html[data-fs="sm"] .text-xs,html[data-fs="lg"] .text-xs{font-size:calc(.75rem * var(--fs)) !important}
+html[data-fs="sm"] .text-xs:not([class*="leading-"]),html[data-fs="lg"] .text-xs:not([class*="leading-"]){line-height:calc(1rem * var(--fs)) !important}
+html[data-fs="sm"] .text-sm,html[data-fs="lg"] .text-sm{font-size:calc(.875rem * var(--fs)) !important}
+html[data-fs="sm"] .text-sm:not([class*="leading-"]),html[data-fs="lg"] .text-sm:not([class*="leading-"]){line-height:calc(1.25rem * var(--fs)) !important}
+html[data-fs="sm"] .text-base,html[data-fs="lg"] .text-base{font-size:calc(1rem * var(--fs)) !important}
+html[data-fs="sm"] .text-base:not([class*="leading-"]),html[data-fs="lg"] .text-base:not([class*="leading-"]){line-height:calc(1.5rem * var(--fs)) !important}
+html[data-fs="sm"] .text-lg,html[data-fs="lg"] .text-lg{font-size:calc(1.125rem * var(--fs)) !important}
+html[data-fs="sm"] .text-lg:not([class*="leading-"]),html[data-fs="lg"] .text-lg:not([class*="leading-"]){line-height:calc(1.75rem * var(--fs)) !important}
+html[data-fs="sm"] .text-xl,html[data-fs="lg"] .text-xl{font-size:calc(1.25rem * var(--fs)) !important}
+html[data-fs="sm"] .text-xl:not([class*="leading-"]),html[data-fs="lg"] .text-xl:not([class*="leading-"]){line-height:calc(1.75rem * var(--fs)) !important}
+html[data-fs="sm"] .text-2xl,html[data-fs="lg"] .text-2xl{font-size:calc(1.5rem * var(--fs)) !important}
+html[data-fs="sm"] .text-2xl:not([class*="leading-"]),html[data-fs="lg"] .text-2xl:not([class*="leading-"]){line-height:calc(2rem * var(--fs)) !important}
+html[data-fs="sm"] .text-3xl,html[data-fs="lg"] .text-3xl{font-size:calc(1.875rem * var(--fs)) !important}
+html[data-fs="sm"] .text-3xl:not([class*="leading-"]),html[data-fs="lg"] .text-3xl:not([class*="leading-"]){line-height:calc(2.25rem * var(--fs)) !important}
+html[data-fs="sm"] .text-4xl,html[data-fs="lg"] .text-4xl{font-size:calc(2.25rem * var(--fs)) !important}
+html[data-fs="sm"] .text-4xl:not([class*="leading-"]),html[data-fs="lg"] .text-4xl:not([class*="leading-"]){line-height:calc(2.5rem * var(--fs)) !important}
+html[data-fs="sm"] .text-5xl,html[data-fs="lg"] .text-5xl{font-size:calc(3rem * var(--fs)) !important}
+html[data-fs="sm"] .text-\[9px\],html[data-fs="lg"] .text-\[9px\]{font-size:calc(9px * var(--fs)) !important}
+html[data-fs="sm"] .text-\[10px\],html[data-fs="lg"] .text-\[10px\]{font-size:calc(10px * var(--fs)) !important}
+html[data-fs="sm"] .text-\[11px\],html[data-fs="lg"] .text-\[11px\]{font-size:calc(11px * var(--fs)) !important}
+html[data-fs="sm"] .text-\[15px\],html[data-fs="lg"] .text-\[15px\]{font-size:calc(15px * var(--fs)) !important}
+html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))}
     </style>
 </head>
 <body>
@@ -597,7 +753,7 @@
             </div>
 
             <div class="px-5 py-3 space-y-4">
-                <div class="bg-white rounded-2xl p-4 border border-zinc-200/80 shadow-sm flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openProfileEditModal()">
+                <div class="bg-white rounded-2xl p-4 border border-zinc-200/80 shadow-sm flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openSettings()">
                     <div class="flex items-center gap-3">
                         <div class="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center text-white font-bold text-lg" id="mypage-avatar-icon">
                             -
@@ -611,9 +767,9 @@
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm overflow-hidden divide-y divide-zinc-100">
-                    <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openProfileEditModal()">
+                    <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openSettings()">
                         <div class="flex items-center gap-3 text-xs font-medium text-zinc-700">
-                            <i class="fa-solid fa-user-gear text-zinc-400 w-4"></i> 내 프로필 수정
+                            <i class="fa-solid fa-gear text-zinc-400 w-4"></i> 설정 <span class="text-[10px] font-normal text-zinc-400">계정 · PIN · 화면</span>
                         </div>
                         <i class="fa-solid fa-chevron-right text-zinc-300 text-xs"></i>
                     </div>
@@ -678,6 +834,207 @@
             </button>
         </div>
 
+
+        <!-- ===================== 설정 화면 ===================== -->
+        <div id="settings-screen" class="settings-screen" aria-hidden="true">
+            <div class="flex items-center gap-1 px-3 py-3 bg-white/90 backdrop-blur-md border-b border-zinc-200/80 shrink-0">
+                <button onclick="closeSettings()" class="header-btn text-zinc-700" aria-label="뒤로">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <div class="text-base font-bold text-zinc-900">설정</div>
+            </div>
+
+            <div class="settings-scroll no-scrollbar px-5 py-5 space-y-6">
+
+                <!-- 1. 계정 정보 -->
+                <section>
+                    <div class="text-[11px] font-bold text-zinc-400 mb-2 px-1 tracking-wide">계정 정보</div>
+                    <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-4">
+                        <div class="flex items-center gap-3 pb-4 border-b border-zinc-100">
+                            <div id="settings-avatar" class="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0">-</div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <div id="settings-head-alias" class="font-bold text-sm text-zinc-900 truncate">-</div>
+                                    <span id="settings-admin-badge" class="hidden text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">관리자</span>
+                                </div>
+                                <div id="settings-head-discord" class="text-xs text-zinc-400 truncate">-</div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 pt-4">
+                            <div>
+                                <label class="block text-[11px] font-semibold text-zinc-500 mb-1">가명 (이름)</label>
+                                <input type="text" id="settings-input-alias" maxlength="4" placeholder="가명 입력" oninput="updateAccountSaveState()"
+                                    class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-zinc-500 mb-1">디스코드 ID</label>
+                                <input type="text" id="settings-input-discord" placeholder="디스코드 ID 입력" oninput="updateAccountSaveState()"
+                                    class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                            </div>
+                            <button id="settings-save-account-btn" onclick="saveAccountInfo()" disabled
+                                class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3 rounded-xl text-xs transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed">
+                                변경사항 저장
+                            </button>
+                        </div>
+
+                        <div class="mt-4 pt-1 divide-y divide-zinc-100 border-t border-zinc-100">
+                            <div class="flex items-center justify-between py-3 gap-3">
+                                <span class="text-xs text-zinc-500 shrink-0">고유번호 (UID)</span>
+                                <span class="text-xs font-semibold text-zinc-900 font-mono flex items-center gap-1.5">
+                                    <span id="settings-uid">-</span>
+                                    <i class="fa-solid fa-lock text-zinc-300 text-[10px]" title="고유번호는 변경할 수 없습니다"></i>
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between py-3 gap-3">
+                                <span class="text-xs text-zinc-500 shrink-0">대표 계좌</span>
+                                <span id="settings-account" class="text-xs font-semibold text-zinc-900 text-right break-all">-</span>
+                            </div>
+                            <div class="flex items-center justify-between py-3 gap-3">
+                                <span class="text-xs text-zinc-500 shrink-0">보유 계좌</span>
+                                <span id="settings-account-count" class="text-xs font-semibold text-zinc-900">-</span>
+                            </div>
+                            <div class="flex items-center justify-between py-3 gap-3">
+                                <span class="text-xs text-zinc-500 shrink-0">보유 포인트</span>
+                                <span id="settings-points" class="text-xs font-semibold text-zinc-900">-</span>
+                            </div>
+                            <div class="flex items-center justify-between py-3 gap-3">
+                                <span class="text-xs text-zinc-500 shrink-0">계정 상태</span>
+                                <span id="settings-status" class="text-xs font-semibold text-emerald-600">정상</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 보안 -->
+                <section>
+                    <div class="text-[11px] font-bold text-zinc-400 mb-2 px-1 tracking-wide">보안</div>
+                    <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm overflow-hidden">
+                        <div class="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-50 transition-colors" onclick="openChangePinModal()">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-key text-zinc-500 text-sm"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold text-zinc-800">PIN 번호 변경</div>
+                                    <div class="text-[11px] text-zinc-400 mt-0.5">로그인·관리자 인증에 쓰는 4자리 번호</div>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-zinc-300 text-xs"></i>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. 화면 설정 -->
+                <section>
+                    <div class="text-[11px] font-bold text-zinc-400 mb-2 px-1 tracking-wide">화면 설정</div>
+                    <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-4 space-y-5">
+
+                        <div>
+                            <div class="text-xs font-bold text-zinc-800 mb-2">화면 모드</div>
+                            <div class="set-grid" style="grid-template-columns: 1fr 1fr;">
+                                <button type="button" class="set-opt" data-theme-opt="light" onclick="setTheme('light')">
+                                    <i class="fa-solid fa-sun text-lg"></i>
+                                    <span class="text-xs font-semibold">밝은 모드</span>
+                                </button>
+                                <button type="button" class="set-opt" data-theme-opt="dark" onclick="setTheme('dark')">
+                                    <i class="fa-solid fa-moon text-lg"></i>
+                                    <span class="text-xs font-semibold">다크 모드</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-xs font-bold text-zinc-800">글씨 크기</div>
+                                <div id="settings-fs-label" class="text-[11px] font-semibold text-zinc-400">보통</div>
+                            </div>
+                            <div class="set-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                                <button type="button" class="set-opt" data-fs-opt="sm" onclick="setFontSize('sm')">
+                                    <span class="fs-sample s-sm">가</span>
+                                    <span class="text-[11px] font-semibold">작게</span>
+                                </button>
+                                <button type="button" class="set-opt" data-fs-opt="md" onclick="setFontSize('md')">
+                                    <span class="fs-sample s-md">가</span>
+                                    <span class="text-[11px] font-semibold">보통</span>
+                                </button>
+                                <button type="button" class="set-opt" data-fs-opt="lg" onclick="setFontSize('lg')">
+                                    <span class="fs-sample s-lg">가</span>
+                                    <span class="text-[11px] font-semibold">크게</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="bg-zinc-50 rounded-xl p-3.5 border border-zinc-100">
+                            <div class="text-[10px] font-semibold text-zinc-400 mb-1.5">미리보기</div>
+                            <div class="text-xs text-zinc-500">KDB페이 주계좌</div>
+                            <div class="text-2xl font-extrabold text-zinc-900 mt-0.5">1,234,567원</div>
+                            <div class="text-xs text-zinc-500 mt-1.5">선택한 글씨 크기가 앱 전체에 이렇게 표시됩니다.</div>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] text-zinc-400"><i class="fa-solid fa-mobile-screen mr-1"></i>화면 설정은 이 기기에만 저장돼요</span>
+                            <button type="button" onclick="resetDisplaySettings()" class="text-[11px] font-semibold text-zinc-500 hover:text-zinc-800 underline underline-offset-2">기본값으로</button>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+        <!-- ===================== PIN 번호 변경 모달 ===================== -->
+        <div id="modal-change-pin" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[85] flex items-end justify-center">
+            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-base text-zinc-900">PIN 번호 변경</h3>
+                    <button onclick="closeModal('modal-change-pin')" class="text-zinc-400 hover:text-zinc-600 p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">현재 PIN</label>
+                        <div class="relative">
+                            <input type="password" id="change-pin-old" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="현재 PIN 4자리"
+                                oninput="sanitizePinInput(this)" onkeydown="if(event.key==='Enter'){document.getElementById('change-pin-new').focus();}"
+                                class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 pr-10 text-xs font-semibold text-zinc-900 tracking-widest font-mono focus:outline-none focus:border-zinc-900">
+                            <button type="button" onclick="togglePinVisibility('change-pin-old', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                                <i class="fa-regular fa-eye text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">새 PIN</label>
+                        <div class="relative">
+                            <input type="password" id="change-pin-new" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="새 PIN 4자리 (숫자)"
+                                oninput="sanitizePinInput(this)" onkeydown="if(event.key==='Enter'){document.getElementById('change-pin-confirm').focus();}"
+                                class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 pr-10 text-xs font-semibold text-zinc-900 tracking-widest font-mono focus:outline-none focus:border-zinc-900">
+                            <button type="button" onclick="togglePinVisibility('change-pin-new', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                                <i class="fa-regular fa-eye text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-zinc-600 mb-1">새 PIN 확인</label>
+                        <div class="relative">
+                            <input type="password" id="change-pin-confirm" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="새 PIN 다시 입력"
+                                oninput="sanitizePinInput(this)" onkeydown="if(event.key==='Enter'){executeChangePin();}"
+                                class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 pr-10 text-xs font-semibold text-zinc-900 tracking-widest font-mono focus:outline-none focus:border-zinc-900">
+                            <button type="button" onclick="togglePinVisibility('change-pin-confirm', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+                                <i class="fa-regular fa-eye text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <p id="change-pin-error" class="hidden text-xs font-medium text-red-600"></p>
+
+                    <button id="change-pin-btn" onclick="executeChangePin()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                        PIN 변경하기
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <div id="modal-transfer" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto border-t border-zinc-200">
@@ -5520,6 +5877,281 @@
                 console.error('자동이체 실행 오류:', err);
                 await markFailure('처리 중 오류가 발생했습니다');
                 return true;
+            }
+        }
+
+
+        /* ==================== 설정 (계정 정보 / PIN 변경 / 화면 모드 / 글씨 크기) ==================== */
+
+        const SETTINGS_KEY = 'kdb_pay_settings_v1';
+        const FONT_LABELS = { sm: '작게', md: '보통', lg: '크게' };
+
+        function loadDisplaySettings() {
+            try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+            catch (e) { return {}; }
+        }
+
+        function saveDisplaySettings(patch) {
+            const next = Object.assign(loadDisplaySettings(), patch);
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch (e) { /* 저장 불가 환경이면 이번 세션에만 적용 */ }
+            return next;
+        }
+
+        // <html> 에 dark 클래스 / data-fs 속성을 반영 (head 의 초기 스크립트와 같은 규칙)
+        function applyDisplaySettings() {
+            const s = loadDisplaySettings();
+            const theme = s.theme === 'dark' ? 'dark' : 'light';
+            const fs = (s.fontSize === 'sm' || s.fontSize === 'lg') ? s.fontSize : 'md';
+            const root = document.documentElement;
+            root.classList.toggle('dark', theme === 'dark');
+            root.setAttribute('data-theme', theme);
+            root.setAttribute('data-fs', fs);
+        }
+
+        function syncDisplayControls() {
+            const s = loadDisplaySettings();
+            const theme = s.theme === 'dark' ? 'dark' : 'light';
+            const fs = (s.fontSize === 'sm' || s.fontSize === 'lg') ? s.fontSize : 'md';
+            document.querySelectorAll('[data-theme-opt]').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-theme-opt') === theme);
+            });
+            document.querySelectorAll('[data-fs-opt]').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-fs-opt') === fs);
+            });
+            const label = document.getElementById('settings-fs-label');
+            if (label) label.innerText = FONT_LABELS[fs];
+        }
+
+        function setTheme(theme) {
+            saveDisplaySettings({ theme: theme === 'dark' ? 'dark' : 'light' });
+            applyDisplaySettings();
+            syncDisplayControls();
+        }
+
+        function setFontSize(level) {
+            saveDisplaySettings({ fontSize: (level === 'sm' || level === 'lg') ? level : 'md' });
+            applyDisplaySettings();
+            syncDisplayControls();
+        }
+
+        function resetDisplaySettings() {
+            saveDisplaySettings({ theme: 'light', fontSize: 'md' });
+            applyDisplaySettings();
+            syncDisplayControls();
+            showToast('화면 설정을 기본값으로 되돌렸습니다.');
+        }
+
+        function openSettings() {
+            const user = getCurrentUser();
+            if (!user) return;
+            renderSettings();
+            const screen = document.getElementById('settings-screen');
+            if (screen) {
+                screen.classList.add('open');
+                screen.setAttribute('aria-hidden', 'false');
+                const scroller = screen.querySelector('.settings-scroll');
+                if (scroller) scroller.scrollTop = 0;
+            }
+        }
+
+        function closeSettings() {
+            const screen = document.getElementById('settings-screen');
+            if (screen) {
+                screen.classList.remove('open');
+                screen.setAttribute('aria-hidden', 'true');
+            }
+            closeModal('modal-change-pin');
+        }
+
+        function renderSettings() {
+            const user = getCurrentUser();
+            if (!user) return;
+
+            const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
+
+            setText('settings-avatar', (user.alias || '-').charAt(0));
+            setText('settings-head-alias', user.alias || '-');
+            setText('settings-head-discord', user.discord || '-');
+            setText('settings-uid', user.uid || '-');
+
+            const acc = getActiveAccount();
+            setText('settings-account', acc ? (acc.name + ' · ' + acc.accountNo) : '-');
+            setText('settings-account-count', ((user.accounts || []).length) + '개');
+            setText('settings-points', formatNumber(user.points || 0) + ' P');
+
+            const statusEl = document.getElementById('settings-status');
+            if (statusEl) {
+                statusEl.innerText = user.isFrozen ? '이용 제한(동결)' : '정상';
+                statusEl.className = 'text-xs font-semibold ' + (user.isFrozen ? 'text-red-600' : 'text-emerald-600');
+            }
+            const adminBadge = document.getElementById('settings-admin-badge');
+            if (adminBadge) adminBadge.classList.toggle('hidden', !user.isAdmin);
+
+            const aliasInput = document.getElementById('settings-input-alias');
+            const discordInput = document.getElementById('settings-input-discord');
+            if (aliasInput) aliasInput.value = user.alias || '';
+            if (discordInput) discordInput.value = user.discord || '';
+
+            updateAccountSaveState();
+            syncDisplayControls();
+        }
+
+        function updateAccountSaveState() {
+            const user = getCurrentUser();
+            const btn = document.getElementById('settings-save-account-btn');
+            if (!user || !btn) return;
+            const alias = (document.getElementById('settings-input-alias').value || '').trim();
+            const discord = (document.getElementById('settings-input-discord').value || '').trim();
+            const changed = alias !== (user.alias || '') || discord !== (user.discord || '');
+            btn.disabled = !(changed && alias && discord);
+        }
+
+        let _accountSaving = false;
+        async function saveAccountInfo() {
+            const user = getCurrentUser();
+            if (!user || _accountSaving) return;
+
+            const alias = document.getElementById('settings-input-alias').value.trim();
+            const discord = document.getElementById('settings-input-discord').value.trim();
+
+            if (!alias) { showToast('가명을 입력해 주세요.'); return; }
+            if (!discord) { showToast('디스코드 ID를 입력해 주세요.'); return; }
+            if (alias === user.alias && discord === user.discord) return;
+
+            const btn = document.getElementById('settings-save-account-btn');
+            _accountSaving = true;
+            if (btn) { btn.disabled = true; btn.innerText = '저장 중...'; }
+
+            try {
+                // 1) 디스코드 ID 중복 확인 (본인 제외)
+                if (discord !== user.discord) {
+                    const { data: dup, error: dupErr } = await sbClient
+                        .from('users_public').select('id').eq('discord', discord).neq('id', user.id).limit(1);
+                    if (dupErr) throw dupErr;
+                    if (dup && dup.length > 0) {
+                        showToast('이미 사용 중인 디스코드 ID입니다.');
+                        return;
+                    }
+                }
+
+                // 2) 저장
+                const { error: upErr } = await sbClient.from('users')
+                    .update({ alias: alias, discord: discord })
+                    .eq('id', user.id);
+                if (upErr) {
+                    if (upErr.code === '23505') { showToast('이미 사용 중인 정보입니다.'); return; }
+                    throw upErr;
+                }
+
+                // 3) 실제 반영됐는지 확인 (권한 정책 때문에 조용히 0건 수정되는 경우 대비)
+                const { data: check, error: chkErr } = await sbClient
+                    .from('users_public').select('alias, discord').eq('id', user.id).single();
+                if (chkErr) throw chkErr;
+                if (!check || check.alias !== alias || check.discord !== discord) {
+                    showToast('서버에 반영되지 않았습니다. 권한 설정을 확인해 주세요.');
+                    return;
+                }
+
+                user.alias = alias;
+                user.discord = discord;
+                saveSession();
+                renderApp();
+                renderSettings();
+                showToast('계정 정보가 변경되었습니다.');
+            } catch (err) {
+                console.error('계정 정보 변경 오류:', err);
+                showToast('계정 정보 변경 중 오류가 발생했습니다.');
+            } finally {
+                _accountSaving = false;
+                if (btn) btn.innerText = '변경사항 저장';
+                updateAccountSaveState();
+            }
+        }
+
+        function sanitizePinInput(el) {
+            el.value = (el.value || '').replace(/\D/g, '').slice(0, 4);
+            const errEl = document.getElementById('change-pin-error');
+            if (errEl) errEl.classList.add('hidden');
+        }
+
+        function showChangePinError(msg) {
+            const errEl = document.getElementById('change-pin-error');
+            if (!errEl) { showToast(msg); return; }
+            errEl.innerText = msg;
+            errEl.classList.remove('hidden');
+        }
+
+        function openChangePinModal() {
+            ['change-pin-old', 'change-pin-new', 'change-pin-confirm'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = '';
+                    el.type = 'password';
+                    const icon = el.parentElement && el.parentElement.querySelector('button i');
+                    if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+                }
+            });
+            const errEl = document.getElementById('change-pin-error');
+            if (errEl) errEl.classList.add('hidden');
+            openModal('modal-change-pin');
+            setTimeout(() => { const el = document.getElementById('change-pin-old'); if (el) el.focus(); }, 320);
+        }
+
+        let _pinChanging = false;
+        async function executeChangePin() {
+            const user = getCurrentUser();
+            if (!user || _pinChanging) return;
+
+            const oldPin = document.getElementById('change-pin-old').value.trim();
+            const newPin = document.getElementById('change-pin-new').value.trim();
+            const confirmPin = document.getElementById('change-pin-confirm').value.trim();
+
+            if (!/^\d{4}$/.test(oldPin)) { showChangePinError('현재 PIN 4자리를 입력해 주세요.'); return; }
+            if (!/^\d{4}$/.test(newPin)) { showChangePinError('새 PIN은 숫자 4자리로 입력해 주세요.'); return; }
+            if (newPin !== confirmPin) { showChangePinError('새 PIN이 서로 일치하지 않습니다.'); return; }
+            if (newPin === oldPin) { showChangePinError('현재 PIN과 다른 번호를 입력해 주세요.'); return; }
+
+            const btn = document.getElementById('change-pin-btn');
+            _pinChanging = true;
+            if (btn) { btn.disabled = true; btn.innerText = '변경 중...'; }
+
+            try {
+                const { error } = await sbClient.rpc('change_user_pin', {
+                    p_user_id: user.id,
+                    p_old_pin: oldPin,
+                    p_new_pin: newPin
+                });
+
+                if (error) {
+                    const msg = error.message || '';
+                    if (msg.includes('invalid_credentials')) {
+                        showChangePinError('현재 PIN이 일치하지 않습니다.');
+                    } else if (msg.includes('same_pin')) {
+                        showChangePinError('현재 PIN과 다른 번호를 입력해 주세요.');
+                    } else if (msg.includes('invalid_pin')) {
+                        showChangePinError('새 PIN은 숫자 4자리로 입력해 주세요.');
+                    } else if (error.code === 'PGRST202' || msg.includes('Could not find the function')) {
+                        console.error('change_user_pin RPC 없음:', error);
+                        showChangePinError('서버에 PIN 변경 기능이 아직 설치되지 않았습니다. (change_user_pin SQL 실행 필요)');
+                    } else {
+                        console.error('PIN 변경 오류:', error);
+                        showChangePinError('PIN 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+                    }
+                    return;
+                }
+
+                closeModal('modal-change-pin');
+                ['change-pin-old', 'change-pin-new', 'change-pin-confirm'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.value = '';
+                });
+                showToast('PIN 번호가 변경되었습니다. 다음 로그인부터 새 PIN을 사용하세요.');
+                notifyUser(user.id, 'PIN 번호가 변경되었습니다', '본인이 변경한 것이 아니라면 즉시 관리자에게 문의해 주세요.');
+            } catch (err) {
+                console.error('PIN 변경 오류:', err);
+                showChangePinError('PIN 변경 중 오류가 발생했습니다. 네트워크를 확인해 주세요.');
+            } finally {
+                _pinChanging = false;
+                if (btn) { btn.disabled = false; btn.innerText = 'PIN 변경하기'; }
             }
         }
 
