@@ -1502,20 +1502,26 @@
                         alias: user.alias,
                         discord: user.discord,
                         uid: user.uid,
-                        points: user.points || 0,
                         current_account_id: user.currentAccountId || null,
-                        attendance_history: user.attendanceHistory || {},
                         purchased_items: user.purchasedItems || []
                     }]);
+                    // points, attendance_history는 더 이상 여기서 upsert하지 않습니다.
+                    // points는 claim_daily_attendance RPC가, attendance_history도
+                    // 같은 RPC 안에서 서버가 직접 갱신합니다 (클라이언트가 값을
+                    // 계산해서 보내는 경로를 완전히 없애기 위함).
 
                     const accountRows = (user.accounts || []).map(acc => ({
                         id: acc.id,
                         user_id: user.id,
                         name: acc.name,
-                        account_no: acc.accountNo,
-                        balance: acc.balance
+                        account_no: acc.accountNo
                     }));
                     if (accountRows.length) await sbClient.from('accounts').upsert(accountRows);
+                    // balance는 여기서 upsert하지 않습니다. transfer_funds /
+                    // adjust_account_balance / admin_adjust_balance 같은
+                    // SECURITY DEFINER RPC를 통해서만 변경되어야 하며,
+                    // DB 쪽에서도 anon의 accounts.balance UPDATE 권한을
+                    // 회수해 두어야 이 경로가 완전히 막힙니다.
 
                     const txRows = (user.transactions || []).map(tx => ({
                         id: tx.id,
@@ -3260,27 +3266,57 @@
             showToast('프로필 정보가 수정되었습니다.');
         }
 
-        function claimDailyAttendance() {
+        function attendanceDateKey(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + day;
+        }
+        // 서버(claim_daily_attendance RPC)의 to_char(now(), 'YYYY-MM-DD') 키 형식과
+        // 반드시 동일해야 출석 위젯이 정확히 표시됩니다.
+
+        async function claimDailyAttendance() {
             const user = getCurrentUser();
             if (!user) return;
 
-            const todayStr = new Date().toDateString();
-            if (!user.attendanceHistory) {
-                user.attendanceHistory = {};
-            }
+            const btnElem = document.getElementById('btn-attendance');
+            if (btnElem) btnElem.disabled = true;
 
-            if (user.attendanceHistory[todayStr]) {
-                showToast('오늘은 이미 출석체크를 완료하셨습니다.');
+            let result;
+            try {
+                const { data, error } = await sbClient.rpc('claim_daily_attendance', {
+                    p_user_id: user.id
+                });
+                if (error) {
+                    console.error('출석체크 처리 오류:', error);
+                    showToast('출석체크 처리 중 오류가 발생했습니다.');
+                    if (btnElem) btnElem.disabled = false;
+                    return;
+                }
+                result = data && data[0];
+            } catch (err) {
+                console.error('출석체크 처리 오류:', err);
+                showToast('출석체크 처리 중 오류가 발생했습니다.');
+                if (btnElem) btnElem.disabled = false;
                 return;
             }
 
-            const earnedPoints = Math.floor(Math.random() * 20) + 1;
-            user.points = (user.points || 0) + earnedPoints;
-            user.attendanceHistory[todayStr] = earnedPoints;
+            if (!result || !result.ok) {
+                const reasonMsg = {
+                    already_claimed: '오늘은 이미 출석체크를 완료하셨습니다.'
+                }[result && result.reason] || '출석체크를 처리할 수 없습니다.';
+                showToast(reasonMsg);
+                if (btnElem) btnElem.disabled = false;
+                return;
+            }
 
-            saveAppData();
+            // 서버가 실제로 적립한 포인트/기록을 신뢰하고 로컬 상태에 반영합니다.
+            if (!user.attendanceHistory) user.attendanceHistory = {};
+            user.attendanceHistory[attendanceDateKey(new Date())] = result.earned_points;
+            user.points = (user.points || 0) + result.earned_points;
+
             renderApp();
-            showToast('출석체크 완료! ' + earnedPoints + 'P가 적립되었습니다!');
+            showToast('출석체크 완료! ' + result.earned_points + 'P가 적립되었습니다!');
         }
 
         function renderAttendanceWidget() {
@@ -3294,7 +3330,7 @@
                 user.attendanceHistory = {};
             }
 
-            const todayStr = new Date().toDateString();
+            const todayStr = attendanceDateKey(new Date());
             const isTodayClaimed = !!user.attendanceHistory[todayStr];
 
             if (btnElem && btnTextElem) {
@@ -3316,7 +3352,7 @@
             for (let i = 6; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
-                const dStr = d.toDateString();
+                const dStr = attendanceDateKey(d);
                 const dayLabel = daysOfWeek[(d.getDay() + 6) % 7];
                 const claimed = user.attendanceHistory[dStr];
                 const isCurrentToday = (i === 0);
@@ -4246,54 +4282,60 @@
         }
 
         /* 참고: 아래 adminReviewTopup / adminReviewMerchant는 아직 anon이 테이블을
-           직접 UPDATE하는 예전 방식 그대로 남겨두었습니다. admin_set_account_frozen /
-           admin_adjust_balance / admin_delete_user와 동일한 패턴(관리자 PIN 재검증
-           RPC + 해당 테이블의 anon UPDATE 권한 회수)으로 다음 라운드에서 옮기는 것을
-           권장합니다. */
+           직접 UPDATE하는 예전 방식이었으나, admin_set_account_frozen 등과 동일한
+           패턴(관리자 PIN 재검증 RPC + 해당 테이블의 anon UPDATE 권한 회수)으로
+           옮겼습니다. 서버(admin_review_topup)가 PIN을 다시 검증하고, 상태 전이와
+           잔액 반영을 하나의 트랜잭션 안에서 원자적으로 처리합니다. */
         async function adminReviewTopup(requestId, decision) {
-            try {
-                const { data: updatedReq, error: updErr } = await sbClient
-                    .from('topup_requests')
-                    .update({ status: decision })
-                    .eq('id', requestId)
-                    .eq('status', 'pending')
-                    .select();
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 가능합니다.');
+                return;
+            }
 
-                if (updErr || !updatedReq || updatedReq.length === 0) {
-                    showToast('이미 처리된 요청입니다.');
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            try {
+                // 알림 발송에 필요한 정보만 미리 조회 (상태 변경은 RPC 안에서 수행)
+                const { data: reqRow } = await sbClient
+                    .from('topup_requests')
+                    .select('user_id, amount')
+                    .eq('id', requestId)
+                    .single();
+
+                const { data: rpcData, error: rpcErr } = await sbClient.rpc('admin_review_topup', {
+                    p_admin_id: admin.id,
+                    p_admin_pin: adminPin,
+                    p_request_id: requestId,
+                    p_decision: decision
+                });
+
+                if (rpcErr) {
+                    console.error('충전 요청 처리 오류:', rpcErr);
+                    showToast(adminRpcErrorMessage(rpcErr));
                     renderAdminTopupRequests();
                     return;
                 }
 
-                const req = updatedReq[0];
+                const result = rpcData && rpcData[0];
+                if (!result || !result.ok) {
+                    const reasonMsg = {
+                        already_processed: '이미 처리된 요청입니다.'
+                    }[result && result.reason] || '요청을 처리할 수 없습니다.';
+                    showToast(reasonMsg);
+                    renderAdminTopupRequests();
+                    return;
+                }
 
-                if (decision === 'approved') {
-                    const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
-                        p_account_id: req.account_id,
-                        p_delta: req.amount
-                    });
-                    const adjustResult = rpcData && rpcData[0];
-                    if (rpcErr || !adjustResult || !adjustResult.ok) {
-                        console.error('충전 잔액 반영 오류:', rpcErr || adjustResult);
-                        showToast('계좌에 충전 금액을 반영하지 못했습니다.');
-                        renderAdminTopupRequests();
-                        return;
+                if (reqRow) {
+                    if (decision === 'approved') {
+                        notifyUser(reqRow.user_id, '잔액 충전 완료', formatNumber(reqRow.amount) + '원이 충전되었습니다.');
+                        showToast(formatNumber(reqRow.amount) + '원 충전을 승인했습니다.');
+                    } else {
+                        notifyUser(reqRow.user_id, '충전 요청이 거절되었습니다', formatNumber(reqRow.amount) + '원 충전 요청이 거절되었습니다. 관리자에게 문의해 주세요.');
+                        showToast('충전 요청을 거절했습니다.');
                     }
-
-                    await sbClient.from('transactions').insert({
-                        id: genId('tx'),
-                        account_id: req.account_id,
-                        title: '잔액 충전',
-                        counterparty_name: 'KDB Pay 관리자',
-                        amount: req.amount,
-                        type: 'deposit',
-                        date_label: '방금 전'
-                    });
-                    notifyUser(req.user_id, '잔액 충전 완료', formatNumber(req.amount) + '원이 충전되었습니다.');
-                    showToast(formatNumber(req.amount) + '원 충전을 승인했습니다.');
-                } else {
-                    notifyUser(req.user_id, '충전 요청이 거절되었습니다', formatNumber(req.amount) + '원 충전 요청이 거절되었습니다. 관리자에게 문의해 주세요.');
-                    showToast('충전 요청을 거절했습니다.');
                 }
 
                 renderAdminTopupRequests();
@@ -4346,8 +4388,35 @@
         }
 
         async function adminReviewMerchant(merchantId, decision) {
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 가능합니다.');
+                return;
+            }
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
             try {
-                await sbClient.from('merchants').update({ status: decision }).eq('id', merchantId);
+                const { data: rpcData, error: rpcErr } = await sbClient.rpc('admin_review_merchant', {
+                    p_admin_id: admin.id,
+                    p_admin_pin: adminPin,
+                    p_merchant_id: merchantId,
+                    p_decision: decision
+                });
+
+                if (rpcErr) {
+                    console.error('가맹점 승인 처리 오류:', rpcErr);
+                    showToast(adminRpcErrorMessage(rpcErr));
+                    return;
+                }
+
+                const result = rpcData && rpcData[0];
+                if (!result || !result.ok) {
+                    showToast('가맹점 승인 상태를 변경할 수 없습니다.');
+                    return;
+                }
+
                 showToast(decision === 'approved' ? '가맹점을 승인했습니다.' : '가맹점 가입을 거절했습니다.');
                 renderAdminPendingMerchants();
                 renderAdminMerchantList(document.getElementById('admin-merchant-search') ? document.getElementById('admin-merchant-search').value : '');
