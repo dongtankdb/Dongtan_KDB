@@ -1418,6 +1418,20 @@
         const SUPABASE_KEY = 'sb_publishable_w3iECjE7i0Y2tPtPDAqaAA_pPHDDXVi';
         const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        // RPC 응답 정규화:
+        // - RETURNS TABLE / SETOF  -> 배열  ([row])
+        // - RETURNS 단일 row / json / jsonb -> 객체 (row)
+        // 기존 코드는 data[0]만 읽어서, 함수가 객체를 돌려주면 PIN이 맞아도
+        // row가 undefined가 되어 "PIN 번호가 일치하지 않습니다"로 처리됐습니다.
+        // ok:false 를 돌려주는 형태의 함수도 실패로 처리합니다.
+        function pickRpcRow(data) {
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!row || typeof row !== 'object') return null;
+            if (row.ok === false) return null;
+            if (!row.id) return null;
+            return row;
+        }
+
 
         const STORAGE_KEY_SESSION = 'kdb_pay_current_user_v2';
         const STORAGE_KEY_MERCHANT_SESSION = 'kdb_pay_current_merchant_v2';
@@ -2452,7 +2466,8 @@
                     showToast('로그인 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                row = data && data[0];
+                row = pickRpcRow(data);
+                if (!row) console.warn('verify_user_login 응답(불일치 처리됨):', data);
             } catch (err) {
                 console.error('로그인 확인 오류:', err);
                 showToast('로그인 확인 중 오류가 발생했습니다.');
@@ -3511,7 +3526,8 @@
                     showToast('로그인 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                row = data && data[0];
+                row = pickRpcRow(data);
+                if (!row) console.warn('verify_merchant_login 응답(불일치 처리됨):', data);
             } catch (err) {
                 console.error('가맹점 로그인 확인 오류:', err);
                 showToast('로그인 확인 중 오류가 발생했습니다.');
