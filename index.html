@@ -350,6 +350,19 @@ html[data-fs="sm"] .text-\[10px\],html[data-fs="lg"] .text-\[10px\]{font-size:ca
 html[data-fs="sm"] .text-\[11px\],html[data-fs="lg"] .text-\[11px\]{font-size:calc(11px * var(--fs)) !important}
 html[data-fs="sm"] .text-\[15px\],html[data-fs="lg"] .text-\[15px\]{font-size:calc(15px * var(--fs)) !important}
 html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))}
+
+        .acc-drag-handle { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+        .acc-drag-handle:active { cursor: grabbing; }
+        .home-acc-row { background: #ffffff; position: relative; }
+        .home-acc-row.shifting { transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1); }
+        .home-acc-row.dragging { z-index: 5; background: #ffffff; box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.28); transition: none; }
+        .sel-acc-row { background: #ffffff; position: relative; }
+        .sel-acc-row.shifting { transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1); }
+        .sel-acc-row.dragging { z-index: 5; background: #ffffff; box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.28); transition: none; }
+        html.dark .sel-acc-row { background: #161618; }
+        html.dark .sel-acc-row.dragging { background: #212125; box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.7); }
+        html.dark .home-acc-row { background: #161618; }
+        html.dark .home-acc-row.dragging { background: #212125; box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.7); }
     </style>
 </head>
 <body>
@@ -539,8 +552,14 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                             <div class="text-[10px] text-zinc-400 mt-0.5">새로운 내 계좌 만들기</div>
                         </div>
                     </div>
-                    <div onclick="openAccountSelectorModal()" class="text-center text-xs font-semibold text-zinc-400 py-3 border-t border-zinc-100 cursor-pointer hover:bg-zinc-50 hover:text-zinc-600 transition-colors">
-                        자산 모두 보기
+                    <div class="flex border-t border-zinc-100">
+                        <div id="home-see-all-btn" onclick="openAccountSelectorModal()" class="flex-1 text-center text-xs font-semibold text-zinc-400 py-3 cursor-pointer hover:bg-zinc-50 hover:text-zinc-600 transition-colors">
+                            자산 모두 보기
+                        </div>
+                        <div id="home-reorder-hint" class="hidden flex-1 text-left text-[11px] text-zinc-400 py-3 px-4">
+                            <i class="fa-solid fa-grip-lines mr-1"></i>손잡이를 끌어서 순서를 바꾸세요
+                        </div>
+                        <div id="home-reorder-btn" onclick="toggleHomeAccountReorder()" class="hidden"></div>
                     </div>
                 </div>
 
@@ -1325,7 +1344,7 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     </div>
                 </div>
 
-                <p id="account-reorder-hint" class="hidden text-[11px] text-zinc-400 mb-3">▲ ▼ 버튼으로 원하는 순서로 옮기세요. 홈 화면 계좌 목록에도 같은 순서로 표시됩니다.</p>
+                <p id="account-reorder-hint" class="hidden text-[11px] text-zinc-400 mb-3">손잡이(≡)를 끌거나 ▲ ▼ 버튼으로 순서를 바꾸세요. 홈 화면 계좌 목록에도 같은 순서로 표시됩니다.</p>
                 <div id="account-selector-list" class="space-y-2 mb-4"></div>
             </div>
         </div>
@@ -2955,10 +2974,42 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             renderShopGrid();
         }
 
+        let homeAccountEditMode = false;
+        let accDrag = null;
+
+        function syncHomeReorderFooter() {
+            const user = getCurrentUser();
+            const count = user ? (user.accounts || []).length : 0;
+            if (count < 2) homeAccountEditMode = false;
+
+            const seeAll = document.getElementById('home-see-all-btn');
+            const hint = document.getElementById('home-reorder-hint');
+            const btn = document.getElementById('home-reorder-btn');
+            if (seeAll) seeAll.classList.toggle('hidden', homeAccountEditMode);
+            if (hint) hint.classList.toggle('hidden', !homeAccountEditMode);
+            if (btn) {
+                btn.innerHTML = homeAccountEditMode ? '완료' : '<i class="fa-solid fa-sort mr-1"></i>순서 변경';
+                btn.className = 'text-center text-xs py-3 border-l border-zinc-100 cursor-pointer hover:bg-zinc-50 transition-colors ' +
+                    (homeAccountEditMode ? 'px-6 font-bold text-zinc-900' : 'flex-1 font-semibold text-zinc-400 hover:text-zinc-600') +
+                    (count < 2 ? ' hidden' : '');
+            }
+        }
+
+        function toggleHomeAccountReorder() {
+            const user = getCurrentUser();
+            if (!user || (user.accounts || []).length < 2) return;
+            homeAccountEditMode = !homeAccountEditMode;
+            renderHomeAccountList();
+        }
+
         function renderHomeAccountList() {
+            if (accDrag) return;
+
             const user = getCurrentUser();
             const container = document.getElementById('home-account-list');
             if (!user || !container) return;
+
+            syncHomeReorderFooter();
 
             if (!user.accounts || user.accounts.length === 0) {
                 container.innerHTML = '';
@@ -2967,7 +3018,11 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
             container.innerHTML = user.accounts.map((acc, idx) => {
                 const borderClass = idx === 0 ? '' : 'border-t border-zinc-100';
-                return '<div class="flex items-center justify-between px-4 py-3.5 ' + borderClass + '">' +
+                const rightSide = homeAccountEditMode
+                    ? '<div class="acc-drag-handle shrink-0 ml-2 -mr-2 w-11 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'home-account-list\', \'.home-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>'
+                    : '<button onclick="quickTransferFromAccount(\'' + acc.id + '\')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors shrink-0 ml-2">송금</button>';
+
+                return '<div class="home-acc-row flex items-center justify-between px-4 py-3.5 ' + borderClass + '" data-acc-id="' + acc.id + '">' +
                     '<div class="flex items-center gap-3 min-w-0">' +
                         '<div class="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">' +
                             '<i class="fa-solid fa-won-sign text-white text-xs"></i>' +
@@ -2977,9 +3032,140 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                             '<div class="text-[11px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(acc.name) + '</div>' +
                         '</div>' +
                     '</div>' +
-                    '<button onclick="quickTransferFromAccount(\'' + acc.id + '\')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors shrink-0 ml-2">송금</button>' +
+                    rightSide +
                 '</div>';
             }).join('');
+        }
+
+        function startAccountDrag(e, handleEl, listId, rowSelector) {
+            if (accDrag) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+            const list = document.getElementById(listId);
+            if (!list) return;
+            const rows = Array.from(list.querySelectorAll(rowSelector));
+            const from = rows.findIndex(r => r.contains(handleEl));
+            if (from < 0 || rows.length < 2) return;
+
+            e.preventDefault();
+            try { handleEl.setPointerCapture(e.pointerId); } catch (err) {}
+
+            const scroller = handleEl.closest('.modal-card, .tab-content');
+            const rects = rows.map(r => r.getBoundingClientRect());
+            accDrag = {
+                pointerId: e.pointerId,
+                handleEl: handleEl,
+                rows: rows,
+                rects: rects,
+                gap: Math.max(0, rects[1].top - rects[0].bottom),
+                from: from,
+                to: from,
+                startY: e.clientY,
+                lastY: e.clientY,
+                scroller: scroller,
+                inTab: !!(scroller && scroller.classList.contains('tab-content')),
+                scrollStart: scroller ? scroller.scrollTop : 0,
+                raf: null
+            };
+
+            rows.forEach((r, i) => r.classList.add(i === from ? 'dragging' : 'shifting'));
+
+            handleEl.addEventListener('pointermove', onAccountDragMove);
+            handleEl.addEventListener('pointerup', onAccountDragEnd);
+            handleEl.addEventListener('pointercancel', onAccountDragEnd);
+        }
+
+        function onAccountDragMove(e) {
+            const d = accDrag;
+            if (!d || e.pointerId !== d.pointerId) return;
+            d.lastY = e.clientY;
+            updateAccountDrag();
+            if (!d.raf) d.raf = requestAnimationFrame(accountDragAutoScroll);
+        }
+
+        function updateAccountDrag() {
+            const d = accDrag;
+            if (!d) return;
+
+            const scrollDelta = d.scroller ? d.scroller.scrollTop - d.scrollStart : 0;
+            const from = d.from;
+            const last = d.rows.length - 1;
+            const h = d.rects[from].height;
+            const step = h + d.gap;
+
+            const minDy = d.rects[0].top - d.rects[from].top;
+            const maxDy = d.rects[last].bottom - d.rects[from].bottom;
+            const dy = Math.max(minDy, Math.min(maxDy, d.lastY - d.startY + scrollDelta));
+
+            d.rows[from].style.transform = 'translateY(' + dy + 'px)';
+
+            const center = d.rects[from].top + h / 2 + dy;
+            let to = 0;
+            d.rects.forEach((r, i) => {
+                if (i !== from && r.top + r.height / 2 < center) to++;
+            });
+            d.to = to;
+
+            d.rows.forEach((row, i) => {
+                if (i === from) return;
+                let shift = 0;
+                if (from < to && i > from && i <= to) shift = -step;
+                else if (from > to && i >= to && i < from) shift = step;
+                row.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+            });
+        }
+
+        function accountDragAutoScroll() {
+            const d = accDrag;
+            if (!d) return;
+            d.raf = null;
+            if (!d.scroller) return;
+
+            const box = d.scroller.getBoundingClientRect();
+            const topEdge = box.top + (d.inTab ? 70 : 50);
+            const bottomEdge = box.bottom - (d.inTab ? 130 : 50);
+            let speed = 0;
+            if (d.lastY < topEdge) speed = -Math.min(14, (topEdge - d.lastY) / 5 + 2);
+            else if (d.lastY > bottomEdge) speed = Math.min(14, (d.lastY - bottomEdge) / 5 + 2);
+
+            if (speed !== 0) {
+                const before = d.scroller.scrollTop;
+                d.scroller.scrollTop = before + speed;
+                if (d.scroller.scrollTop !== before) {
+                    updateAccountDrag();
+                    d.raf = requestAnimationFrame(accountDragAutoScroll);
+                }
+            }
+        }
+
+        function onAccountDragEnd(e) {
+            const d = accDrag;
+            if (!d || e.pointerId !== d.pointerId) return;
+
+            d.handleEl.removeEventListener('pointermove', onAccountDragMove);
+            d.handleEl.removeEventListener('pointerup', onAccountDragEnd);
+            d.handleEl.removeEventListener('pointercancel', onAccountDragEnd);
+            try { d.handleEl.releasePointerCapture(d.pointerId); } catch (err) {}
+            if (d.raf) cancelAnimationFrame(d.raf);
+
+            d.rows.forEach(r => {
+                r.classList.remove('dragging', 'shifting');
+                r.style.transform = '';
+            });
+
+            const from = d.from;
+            const to = e.type === 'pointercancel' ? from : d.to;
+            accDrag = null;
+
+            const user = getCurrentUser();
+            if (user && to !== from) {
+                const moved = user.accounts.splice(from, 1)[0];
+                user.accounts.splice(to, 0, moved);
+                persistAccountOrder(user);
+            }
+            renderHomeAccountList();
+            const selectorModal = document.getElementById('modal-account-selector');
+            if (selectorModal && !selectorModal.classList.contains('hidden-modal')) renderAccountSelectorList();
         }
 
         function quickTransferFromAccount(accId) {
@@ -3610,13 +3796,13 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
                 if (accountReorderMode) {
                     const btnBase = 'w-9 h-8 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
-                    return '<div class="p-3 rounded-2xl border border-zinc-200 bg-white flex items-center gap-3">' +
+                    return '<div class="sel-acc-row p-3 rounded-2xl border border-zinc-200 flex items-center gap-3">' +
+                        '<div class="acc-drag-handle shrink-0 -ml-1 w-9 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'account-selector-list\', \'.sel-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>' +
+                        info + balance +
                         '<div class="flex flex-col gap-1 shrink-0">' +
                             '<button type="button" onclick="moveAccount(\'' + acc.id + '\', -1)" ' + (idx === 0 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="위로"><i class="fa-solid fa-chevron-up text-[11px]"></i></button>' +
                             '<button type="button" onclick="moveAccount(\'' + acc.id + '\', 1)" ' + (idx === accounts.length - 1 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="아래로"><i class="fa-solid fa-chevron-down text-[11px]"></i></button>' +
                         '</div>' +
-                        '<div class="text-[11px] font-bold text-zinc-400 w-4 text-center shrink-0">' + (idx + 1) + '</div>' +
-                        info + balance +
                     '</div>';
                 }
 
@@ -5340,6 +5526,10 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
         }
 
         function switchTab(tabId, el) {
+            if (tabId !== 'home' && homeAccountEditMode) {
+                homeAccountEditMode = false;
+                renderHomeAccountList();
+            }
             const tabs = document.querySelectorAll('.tab-content');
             tabs.forEach(t => t.classList.remove('active'));
 
