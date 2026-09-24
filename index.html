@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KDB Pay Fintech App</title>
     <script>
-        /* 저장된 화면 설정(다크 모드 / 글씨 크기)을 렌더링 전에 즉시 적용 */
         (function () {
             try {
                 var s = JSON.parse(localStorage.getItem('kdb_pay_settings_v1') || '{}');
@@ -132,7 +131,6 @@
             scrollbar-width: none;
         }
 
-
         .tab-content > .sticky {
             transform: translateZ(0);
             -webkit-transform: translateZ(0);
@@ -214,7 +212,6 @@
             transform: scale(1.02);
         }
 
-        /* ===================== 설정 화면 / 테마 / 글씨 크기 ===================== */
         :root { --fs: 1; }
         html[data-fs="sm"] { --fs: 0.9; }
         html[data-fs="lg"] { --fs: 1.15; }
@@ -269,7 +266,6 @@
         html.dark .bg-gradient-to-br.from-zinc-900,
         html.dark .bg-gradient-to-r.from-zinc-900 { outline: 1px solid rgba(255,255,255,0.08); outline-offset: -1px; }
 
-/* ===== 다크 모드: 앱에서 사용하는 색상 클래스 매핑 (로그인 화면 제외) ===== */
 html.dark .bg-white:not(#auth-screen *){background-color:#161618!important}
 html.dark .bg-white\/90:not(#auth-screen *){background-color:rgba(22,22,24,.9)!important}
 html.dark .bg-white\/95:not(#auth-screen *){background-color:rgba(22,22,24,.95)!important}
@@ -332,7 +328,6 @@ html.dark .divide-zinc-100:not(#auth-screen *) > :not([hidden]) ~ :not([hidden])
 html.dark .from-zinc-100:not(#auth-screen *){--tw-gradient-from:#222226 var(--tw-gradient-from-position);--tw-gradient-to:rgba(34,34,38,0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)!important}
 html.dark .to-zinc-50:not(#auth-screen *){--tw-gradient-to:#1c1c20 var(--tw-gradient-to-position)!important}
 
-/* ===== 글씨 크기 3단계 (--fs 배율): 작게 / 보통 / 크게 ===== */
 html[data-fs="sm"] .text-xs,html[data-fs="lg"] .text-xs{font-size:calc(.75rem * var(--fs)) !important}
 html[data-fs="sm"] .text-xs:not([class*="leading-"]),html[data-fs="lg"] .text-xs:not([class*="leading-"]){line-height:calc(1rem * var(--fs)) !important}
 html[data-fs="sm"] .text-sm,html[data-fs="lg"] .text-sm{font-size:calc(.875rem * var(--fs)) !important}
@@ -376,7 +371,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
         <div id="toast-container" class="absolute top-0 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-[380px] pointer-events-none flex flex-col gap-2 pt-3"></div>
 
-
         <div id="payment-request-banner" class="hidden absolute top-0 left-0 right-0 z-[110] p-3">
             <div class="bg-white rounded-2xl shadow-2xl border border-zinc-200 p-4">
                 <div class="flex items-center gap-2 mb-2">
@@ -403,7 +397,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div id="auth-screen" class="auth-screen">
             <div class="flex justify-between items-center pt-2">
                 <div class="flex items-center gap-2">
@@ -414,9 +407,7 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </button>
             </div>
 
-
             <div id="auth-login-view" class="flex flex-col items-center justify-center my-auto w-full max-w-xs mx-auto">
-
 
                 <div id="auth-account-lookup" class="hidden w-full flex flex-col items-center">
                     <div class="w-16 h-16 bg-zinc-900 text-zinc-500 rounded-full flex items-center justify-center text-xl mb-4 border border-zinc-700">
@@ -429,14 +420,12 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     <button onclick="toggleAuthMode()" class="text-xs text-zinc-500 hover:text-zinc-300 mt-2">신규 회원가입 하러 가기</button>
                 </div>
 
-
                 <div id="auth-pin-section" class="hidden w-full flex flex-col items-center">
                     <div id="auth-user-avatar" class="w-20 h-20 bg-gradient-to-tr from-zinc-800 to-zinc-700 text-white rounded-full flex items-center justify-center text-2xl font-bold mb-4 shadow-xl border border-zinc-600/50">
                         -
                     </div>
                     <h2 id="auth-user-alias" class="text-xl font-bold text-white mb-1">사용자 없음</h2>
                     <p id="auth-user-discord" class="text-xs text-zinc-400 mb-6 font-mono">회원가입이 필요합니다</p>
-
 
                     <div class="flex gap-4 mb-8">
                         <div class="pin-dot w-4 h-4 rounded-full border-2 border-zinc-600 bg-transparent transition-all"></div>
@@ -447,7 +436,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
                     <div id="auth-user-selector" class="w-full mb-2"></div>
                     <button onclick="showAccountLookup()" class="text-xs text-zinc-500 hover:text-zinc-300 mb-2">다른 계정으로 로그인</button>
-
 
                     <div class="grid grid-cols-3 gap-3 w-full mt-2">
                         <button onclick="pressPin('1')" class="keypad-btn h-14 bg-zinc-900 hover:bg-zinc-800 text-white rounded-2xl font-bold text-xl border border-zinc-800 flex items-center justify-center">1</button>
@@ -465,7 +453,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     </div>
                 </div>
             </div>
-
 
             <div id="auth-signup-view" class="hidden flex flex-col justify-center my-auto w-full max-w-xs mx-auto space-y-4">
                 <div class="text-center mb-2">
@@ -507,7 +494,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 안전한 보안 PIN 인증 시스템 적용 중
             </div>
         </div>
-
 
         <div id="tab-home" class="tab-content active no-scrollbar" style="background:#F2F3F5;">
             <div class="flex justify-between items-center px-5 py-4 sticky top-0 z-10" style="background:#F2F3F5;">
@@ -618,7 +604,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div id="tab-shop" class="tab-content no-scrollbar">
             <div class="flex justify-between items-center px-5 py-4 bg-white/90 backdrop-blur-md sticky top-0 z-10 border-b border-zinc-200/80">
                 <div class="w-10"></div>
@@ -649,7 +634,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </div>
             </div>
         </div>
-
 
         <div id="tab-pay" class="tab-content no-scrollbar">
             <div class="flex justify-between items-center px-5 py-4 bg-white/90 backdrop-blur-md sticky top-0 z-10 border-b border-zinc-200/80">
@@ -696,7 +680,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </button>
             </div>
         </div>
-
 
         <div id="tab-benefits" class="tab-content no-scrollbar">
             <div class="flex justify-between items-center px-5 py-4 bg-white/90 backdrop-blur-md sticky top-0 z-10 border-b border-zinc-200/80">
@@ -745,7 +728,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </div>
             </div>
         </div>
-
 
         <div id="tab-all" class="tab-content no-scrollbar">
             <div class="flex justify-between items-center px-5 py-4 bg-white/90 backdrop-blur-md sticky top-0 z-10 border-b border-zinc-200/80">
@@ -810,7 +792,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div class="absolute bottom-0 left-0 w-full bg-white/95 backdrop-blur-md border-t border-zinc-200/80 py-2.5 px-3 z-50 flex justify-around shadow-nav">
             <button onclick="switchTab('home', this)" class="nav-item active flex flex-col items-center gap-1 text-zinc-400">
                 <i class="fa-solid fa-house text-lg"></i>
@@ -834,8 +815,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </button>
         </div>
 
-
-        <!-- ===================== 설정 화면 ===================== -->
         <div id="settings-screen" class="settings-screen" aria-hidden="true">
             <div class="flex items-center gap-1 px-3 py-3 bg-white/90 backdrop-blur-md border-b border-zinc-200/80 shrink-0">
                 <button onclick="closeSettings()" class="header-btn text-zinc-700" aria-label="뒤로">
@@ -846,7 +825,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
             <div class="settings-scroll no-scrollbar px-5 py-5 space-y-6">
 
-                <!-- 1. 계정 정보 -->
                 <section>
                     <div class="text-[11px] font-bold text-zinc-400 mb-2 px-1 tracking-wide">계정 정보</div>
                     <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-4">
@@ -906,7 +884,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     </div>
                 </section>
 
-                <!-- 2. 보안 -->
                 <section>
                     <div class="text-[11px] font-bold text-zinc-400 mb-2 px-1 tracking-wide">보안</div>
                     <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm overflow-hidden">
@@ -925,7 +902,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     </div>
                 </section>
 
-                <!-- 3. 화면 설정 -->
                 <section>
                     <div class="text-[11px] font-bold text-zinc-400 mb-2 px-1 tracking-wide">화면 설정</div>
                     <div class="bg-white rounded-2xl border border-zinc-200/80 shadow-sm p-4 space-y-5">
@@ -982,7 +958,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-        <!-- ===================== PIN 번호 변경 모달 ===================== -->
         <div id="modal-change-pin" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[85] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200">
                 <div class="flex justify-between items-center mb-4">
@@ -1077,7 +1052,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div id="modal-transfer-confirm" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[90] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto border-t border-zinc-200">
                 <div class="flex justify-between items-center mb-5">
@@ -1119,7 +1093,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div id="modal-transaction-history" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[90] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 max-h-[85vh] flex flex-col border-t border-zinc-200">
                 <div class="flex justify-between items-center mb-4 shrink-0">
@@ -1143,7 +1116,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 <div id="notif-list" class="flex flex-col gap-2 overflow-y-auto no-scrollbar pb-2"></div>
             </div>
         </div>
-
 
         <div id="modal-pos-confirm" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[95] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto border-t border-zinc-200">
@@ -1179,7 +1151,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </div>
             </div>
         </div>
-
 
         <div id="modal-deposit" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto border-t border-zinc-200">
@@ -1342,20 +1313,22 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div id="modal-account-selector" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
-            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-base text-zinc-900">대표 계좌 선택</h3>
-                    <button onclick="closeModal('modal-account-selector')" class="text-zinc-400 hover:text-zinc-600 p-1">
-                        <i class="fa-solid fa-xmark text-lg"></i>
-                    </button>
+            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200 max-h-[85vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4 gap-2">
+                    <h3 id="account-selector-title" class="font-bold text-base text-zinc-900">대표 계좌 선택</h3>
+                    <div class="flex items-center gap-2">
+                        <button id="account-reorder-toggle" onclick="toggleAccountReorderMode()" class="hidden text-[11px] font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-full transition-colors"></button>
+                        <button onclick="closeModal('modal-account-selector')" class="text-zinc-400 hover:text-zinc-600 p-1">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
                 </div>
 
+                <p id="account-reorder-hint" class="hidden text-[11px] text-zinc-400 mb-3">▲ ▼ 버튼으로 원하는 순서로 옮기세요. 홈 화면 계좌 목록에도 같은 순서로 표시됩니다.</p>
                 <div id="account-selector-list" class="space-y-2 mb-4"></div>
             </div>
         </div>
-
 
         <div id="modal-pos" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 max-h-[92vh] overflow-y-auto border-t border-zinc-200">
@@ -1576,7 +1549,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             </div>
         </div>
 
-
         <div id="modal-profile" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200">
                 <div class="flex justify-between items-center mb-4">
@@ -1605,7 +1577,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </div>
             </div>
         </div>
-
 
         <div id="modal-cart" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
             <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200 max-h-[80vh] overflow-y-auto">
@@ -1743,10 +1714,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
         </div>
     </div>
 
-    <!-- 관리자 전용 작업 실행 전, 관리자 본인 PIN을 다시 확인받는 모달.
-         계좌 정지/해제, 잔액 지급/차감, 회원 강제 삭제가 모두 이 모달을 거쳐
-         admin_* RPC에 PIN을 함께 전달합니다. 클라이언트의 isAdmin 플래그만으로는
-         서버가 아무것도 검증하지 않으므로, 매 작업마다 서버가 다시 검증합니다. -->
     <div id="modal-admin-pin" class="hidden fixed inset-0 z-[700] bg-black/70 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl w-full max-w-xs p-6 shadow-2xl">
             <div class="flex justify-between items-center mb-4">
@@ -1775,12 +1742,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
         const SUPABASE_KEY = 'sb_publishable_w3iECjE7i0Y2tPtPDAqaAA_pPHDDXVi';
         const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // RPC 응답 정규화:
-        // - RETURNS TABLE / SETOF  -> 배열  ([row])
-        // - RETURNS 단일 row / json / jsonb -> 객체 (row)
-        // 기존 코드는 data[0]만 읽어서, 함수가 객체를 돌려주면 PIN이 맞아도
-        // row가 undefined가 되어 "PIN 번호가 일치하지 않습니다"로 처리됐습니다.
-        // ok:false 를 돌려주는 형태의 함수도 실패로 처리합니다.
         function pickRpcRow(data) {
             const row = Array.isArray(data) ? data[0] : data;
             if (!row || typeof row !== 'object') return null;
@@ -1788,7 +1749,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (!row.id) return null;
             return row;
         }
-
 
         const STORAGE_KEY_SESSION = 'kdb_pay_current_user_v2';
         const STORAGE_KEY_MERCHANT_SESSION = 'kdb_pay_current_merchant_v2';
@@ -1847,7 +1807,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             productPayMethod: 'cash'
         };
 
-
         function saveSession() {
             if (state.currentUserId) {
                 localStorage.setItem(STORAGE_KEY_SESSION, state.currentUserId);
@@ -1860,7 +1819,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 localStorage.removeItem(STORAGE_KEY_MERCHANT_SESSION);
             }
         }
-
 
         async function saveAppData(extraMerchantIds) {
             saveSession();
@@ -1876,10 +1834,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                         current_account_id: user.currentAccountId || null,
                         purchased_items: user.purchasedItems || []
                     }]);
-                    // points, attendance_history는 더 이상 여기서 upsert하지 않습니다.
-                    // points는 claim_daily_attendance RPC가, attendance_history도
-                    // 같은 RPC 안에서 서버가 직접 갱신합니다 (클라이언트가 값을
-                    // 계산해서 보내는 경로를 완전히 없애기 위함).
 
                     const accountRows = (user.accounts || []).map(acc => ({
                         id: acc.id,
@@ -1888,11 +1842,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                         account_no: acc.accountNo
                     }));
                     if (accountRows.length) await sbClient.from('accounts').upsert(accountRows);
-                    // balance는 여기서 upsert하지 않습니다. transfer_funds /
-                    // adjust_account_balance / admin_adjust_balance 같은
-                    // SECURITY DEFINER RPC를 통해서만 변경되어야 하며,
-                    // DB 쪽에서도 anon의 accounts.balance UPDATE 권한을
-                    // 회수해 두어야 이 경로가 완전히 막힙니다.
 
                     const txRows = (user.transactions || []).map(tx => ({
                         id: tx.id,
@@ -1906,7 +1855,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     })).filter(t => t.account_id);
                     if (txRows.length) await sbClient.from('transactions').upsert(txRows);
                 }
-
 
                 const merchantIdSet = new Set(extraMerchantIds || []);
                 const currentMerchant = getCurrentMerchant();
@@ -1948,7 +1896,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 showToast('서버 저장 중 오류가 발생했습니다. 네트워크를 확인해 주세요.');
             }
         }
-
 
         async function loadAppData() {
             const [
@@ -2023,7 +1970,9 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 return;
             }
 
-            user.accounts = (accounts || []).map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance, isFrozen: a.is_frozen || false }));
+            const orderedRows = orderAccountRows(accounts || [], getLocalAccountOrder(userId));
+            user.accounts = orderedRows.map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance, isFrozen: a.is_frozen || false }));
+            setLocalAccountOrder(userId, user.accounts.map(a => a.id));
 
             const accountIds = user.accounts.map(a => a.id);
             let transactions = [];
@@ -2060,7 +2009,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             showToast('서버에서 데이터를 불러오는 중입니다...');
             await loadAppData();
 
-
             state.currentUserId = null;
 
             if (state.users.length > 0) {
@@ -2094,7 +2042,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (!user) return null;
             return user.accounts.find(acc => acc.id === user.currentAccountId) || user.accounts[0];
         }
-
 
         function genId(prefix) {
             return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
@@ -2219,7 +2166,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         let realtimeChannel = null;
 
         function subscribeToRealtimeUpdates() {
@@ -2288,7 +2234,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 showToast(formatNumber(row.amount) + '원이 입금되었습니다.' + (row.memo ? ' "' + row.memo + '"' : ''));
             }
         }
-
 
         let activePaymentRequest = null;
 
@@ -2415,7 +2360,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         function animateNumberChange(element, newValue, duration) {
             if (!element) return;
             duration = duration || 700;
@@ -2455,7 +2399,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
             requestAnimationFrame(step);
         }
-
 
         function copyPaymentCode() {
             if (!state.currentPayCode) return;
@@ -2502,7 +2445,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
             document.body.removeChild(temp);
         }
-
 
         function toggleCategoryDropdown() {
             const dropdown = document.getElementById('mch-category-dropdown');
@@ -2589,7 +2531,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             const container = document.getElementById('toast-container');
             if (!container) return;
 
-
             while (container.children.length >= TOAST_MAX_COUNT) {
                 container.removeChild(container.firstElementChild);
             }
@@ -2618,7 +2559,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
-
 
         function openDepositModal() {
             const amtInput = document.getElementById('deposit-amount');
@@ -2699,7 +2639,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             signupView.classList.add('hidden');
             toggleBtn.innerText = '신규 회원가입';
 
-
             const knownIds = getKnownAccountIds();
             const knownUsers = state.users.filter(u => knownIds.includes(u.id));
 
@@ -2741,7 +2680,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             const input = document.getElementById('auth-lookup-input');
             if (input) { input.value = ''; input.focus(); }
         }
-
 
         function lookupAccount() {
             const input = document.getElementById('auth-lookup-input');
@@ -2837,7 +2775,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 updatePinDots();
                 return;
             }
-
 
             let localUser = state.users.find(u => u.id === row.id);
             if (!localUser) {
@@ -3072,7 +3009,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             elem.innerText = formatNumber(total) + '원';
         }
 
-
         function renderTxItemsHtml(transactions) {
             return transactions.map(tx => {
                 const isPositive = tx.amount > 0;
@@ -3181,7 +3117,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         async function findRecipientAccountLive(query) {
             try {
                 let searchQuery = query;
@@ -3259,7 +3194,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         const LARGE_TRANSFER_THRESHOLD = 500000;
         const PAYMENT_FEE_RATE = 0.07;
         const TRANSFER_RATE_WINDOW_MINUTES = 5;
@@ -3282,7 +3216,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
             const distinctRecipients = new Set((recentTx || []).map(t => t.counterparty_name).filter(Boolean));
 
-
             if (distinctRecipients.has(newRecipientAlias)) {
                 return { allowed: true };
             }
@@ -3291,7 +3224,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
             return { allowed: true };
         }
-
 
         async function openTransferConfirm() {
             const recipientInput = document.getElementById('transfer-recipient');
@@ -3374,7 +3306,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 return;
             }
 
-
             state.pendingTransfer = { match, amount, memo };
 
             document.getElementById('transfer-confirm-recipient-name').innerText = match.alias;
@@ -3392,7 +3323,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             closeModal('modal-transfer');
             openModal('modal-transfer-confirm');
         }
-
 
         async function confirmTransfer() {
             const pending = state.pendingTransfer;
@@ -3563,6 +3493,7 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             };
 
             user.accounts.push(newAccount);
+            setLocalAccountOrder(user.id, user.accounts.map(a => a.id));
             user.currentAccountId = newAccId;
 
             saveAppData();
@@ -3573,28 +3504,143 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (aliasElem) aliasElem.value = '';
         }
 
+        const ACCOUNT_ORDER_KEY_PREFIX = 'kdb_pay_account_order_v1_';
+
+        function getLocalAccountOrder(userId) {
+            try { return JSON.parse(localStorage.getItem(ACCOUNT_ORDER_KEY_PREFIX + userId)) || []; }
+            catch (e) { return []; }
+        }
+
+        function setLocalAccountOrder(userId, ids) {
+            try { localStorage.setItem(ACCOUNT_ORDER_KEY_PREFIX + userId, JSON.stringify(ids)); } catch (e) { }
+        }
+
+        function orderAccountRows(rows, localIds) {
+            const localIdx = new Map((localIds || []).map((id, i) => [id, i]));
+            const num = v => (v === null || v === undefined || v === '') ? null : Number(v);
+            const cmp = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
+            return (rows || []).slice().sort((a, b) => {
+                const sa = num(a.sort_order), sb = num(b.sort_order);
+                if ((sa === null) !== (sb === null)) return sa === null ? 1 : -1;
+                if (sa !== null && sa !== sb) return cmp(sa, sb);
+
+                const ia = localIdx.has(a.id) ? localIdx.get(a.id) : Infinity;
+                const ib = localIdx.has(b.id) ? localIdx.get(b.id) : Infinity;
+                if (ia !== ib) return ia < ib ? -1 : 1;
+
+                const ca = a.created_at ? Date.parse(a.created_at) : 0;
+                const cb = b.created_at ? Date.parse(b.created_at) : 0;
+                if (ca !== cb) return cmp(ca, cb);
+
+                return cmp(String(a.id), String(b.id));
+            });
+        }
+
+        let _accountOrderTimer = null;
+        function persistAccountOrder(user) {
+            const ids = user.accounts.map(a => a.id);
+            setLocalAccountOrder(user.id, ids);
+
+            clearTimeout(_accountOrderTimer);
+            _accountOrderTimer = setTimeout(async () => {
+                try {
+                    const { error } = await sbClient.rpc('set_account_order', {
+                        p_user_id: user.id,
+                        p_account_ids: ids
+                    });
+                    if (error) {
+                        const missing = error.code === 'PGRST202' || (error.message || '').includes('Could not find the function');
+                        if (missing) console.info('set_account_order 함수가 없어 순서를 이 기기에만 저장했습니다.');
+                        else console.warn('계좌 순서 서버 저장 오류:', error);
+                    }
+                } catch (err) {
+                    console.warn('계좌 순서 서버 저장 오류:', err);
+                }
+            }, 500);
+        }
+
+        let accountReorderMode = false;
+
         function openAccountSelectorModal() {
+            const user = getCurrentUser();
+            if (!user) return;
+            accountReorderMode = false;
+            renderAccountSelectorList();
+            openModal('modal-account-selector');
+        }
+
+        function toggleAccountReorderMode() {
+            accountReorderMode = !accountReorderMode;
+            renderAccountSelectorList();
+        }
+
+        function renderAccountSelectorList() {
             const user = getCurrentUser();
             const container = document.getElementById('account-selector-list');
             if (!user || !container) return;
 
-            container.innerHTML = user.accounts.map(acc => {
-                const isSelected = acc.id === (user.currentAccountId || user.accounts[0].id);
-                const borderClass = isSelected ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 bg-white hover:bg-zinc-50';
+            const accounts = user.accounts || [];
+            const toggleBtn = document.getElementById('account-reorder-toggle');
+            const hint = document.getElementById('account-reorder-hint');
+            const title = document.getElementById('account-selector-title');
 
-                return '<div onclick="selectActiveAccount(\'' + acc.id + '\')" class="p-4 rounded-2xl border ' + borderClass + ' cursor-pointer flex justify-between items-center transition-all">' +
-                    '<div>' +
-                        '<div class="font-bold text-xs text-zinc-900">' + escapeHtml(acc.name) + '</div>' +
+            if (accounts.length < 2) accountReorderMode = false;
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('hidden', accounts.length < 2);
+                toggleBtn.innerHTML = accountReorderMode
+                    ? '<i class="fa-solid fa-check mr-1"></i>완료'
+                    : '<i class="fa-solid fa-sort mr-1"></i>순서 변경';
+            }
+            if (hint) hint.classList.toggle('hidden', !accountReorderMode);
+            if (title) title.innerText = accountReorderMode ? '계좌 순서 변경' : '대표 계좌 선택';
+
+            const activeId = user.currentAccountId || (accounts[0] && accounts[0].id);
+
+            container.innerHTML = accounts.map((acc, idx) => {
+                const isSelected = acc.id === activeId;
+                const info = '<div class="min-w-0 flex-1">' +
+                        '<div class="font-bold text-xs text-zinc-900 truncate">' + escapeHtml(acc.name) + '</div>' +
                         '<div class="text-[11px] text-zinc-400 font-mono mt-0.5">' + escapeHtml(acc.accountNo) + '</div>' +
-                    '</div>' +
-                    '<div class="text-right">' +
+                    '</div>';
+                const balance = '<div class="text-right shrink-0">' +
                         '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원</div>' +
                         (isSelected ? '<span class="text-[10px] text-zinc-900 bg-zinc-200 font-bold px-2 py-0.5 rounded-full mt-1 inline-block">사용 중</span>' : '') +
-                    '</div>' +
+                    '</div>';
+
+                if (accountReorderMode) {
+                    const btnBase = 'w-9 h-8 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed';
+                    return '<div class="p-3 rounded-2xl border border-zinc-200 bg-white flex items-center gap-3">' +
+                        '<div class="flex flex-col gap-1 shrink-0">' +
+                            '<button type="button" onclick="moveAccount(\'' + acc.id + '\', -1)" ' + (idx === 0 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="위로"><i class="fa-solid fa-chevron-up text-[11px]"></i></button>' +
+                            '<button type="button" onclick="moveAccount(\'' + acc.id + '\', 1)" ' + (idx === accounts.length - 1 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="아래로"><i class="fa-solid fa-chevron-down text-[11px]"></i></button>' +
+                        '</div>' +
+                        '<div class="text-[11px] font-bold text-zinc-400 w-4 text-center shrink-0">' + (idx + 1) + '</div>' +
+                        info + balance +
+                    '</div>';
+                }
+
+                const borderClass = isSelected ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 bg-white hover:bg-zinc-50';
+                return '<div onclick="selectActiveAccount(\'' + acc.id + '\')" class="p-4 rounded-2xl border ' + borderClass + ' cursor-pointer flex justify-between items-center gap-3 transition-all">' +
+                    info + balance +
                 '</div>';
             }).join('');
+        }
 
-            openModal('modal-account-selector');
+        function moveAccount(accId, direction) {
+            const user = getCurrentUser();
+            if (!user) return;
+            const i = user.accounts.findIndex(a => a.id === accId);
+            const j = i + direction;
+            if (i < 0 || j < 0 || j >= user.accounts.length) return;
+
+            const tmp = user.accounts[i];
+            user.accounts[i] = user.accounts[j];
+            user.accounts[j] = tmp;
+
+            persistAccountOrder(user);
+            renderAccountSelectorList();
+            if (typeof renderHomeAccountList === 'function') renderHomeAccountList();
         }
 
         function selectActiveAccount(accId) {
@@ -3644,8 +3690,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             const day = String(d.getDate()).padStart(2, '0');
             return y + '-' + m + '-' + day;
         }
-        // 서버(claim_daily_attendance RPC)의 to_char(now(), 'YYYY-MM-DD') 키 형식과
-        // 반드시 동일해야 출석 위젯이 정확히 표시됩니다.
 
         async function claimDailyAttendance() {
             const user = getCurrentUser();
@@ -3682,7 +3726,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 return;
             }
 
-            // 서버가 실제로 적립한 포인트/기록을 신뢰하고 로컬 상태에 반영합니다.
             if (!user.attendanceHistory) user.attendanceHistory = {};
             user.attendanceHistory[attendanceDateKey(new Date())] = result.earned_points;
             user.points = (user.points || 0) + result.earned_points;
@@ -4105,7 +4148,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         async function openPosConfirm() {
             const codeInput = document.getElementById('pos-input-code');
             const amtInput = document.getElementById('pos-input-amount');
@@ -4196,7 +4238,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             openModal('modal-pos-confirm');
         }
 
-
         async function executePosPayment() {
             const pending = state.pendingPosPayment;
             if (!pending) {
@@ -4213,7 +4254,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 confirmBtn.disabled = true;
                 confirmBtn.innerText = '요청 전송 중...';
             }
-
 
             const requestId = genId('preq');
             const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
@@ -4261,7 +4301,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (codeInput) codeInput.value = '';
             if (amtInput) amtInput.value = '0';
         }
-
 
         let merchantWaitingChannel = null;
 
@@ -4446,7 +4485,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
                 await sbClient.from('payment_codes').update({ used: true }).eq('user_id', user.id).eq('used', false);
 
-
                 sbClient.from('payment_codes').delete().lt('expires_at', new Date().toISOString())
                     .then(() => {}, (err) => console.error('만료 코드 정리 오류:', err));
 
@@ -4489,13 +4527,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-        /* ====================================================================
-           관리자 PIN 재확인 모달 헬퍼
-           - 계좌 정지/해제, 잔액 지급/차감, 회원 강제 삭제를 실행하기 전에
-             항상 이 프롬프트를 거쳐 관리자 본인의 PIN을 다시 입력받습니다.
-           - 서버(admin_* RPC)가 verify_user_login으로 재검증하므로,
-             여기서 받은 PIN이 틀리면 RPC 호출 자체가 실패합니다.
-           ==================================================================== */
         let _adminPinResolve = null;
 
         function promptAdminPin() {
@@ -4654,11 +4685,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-        /* 참고: 아래 adminReviewTopup / adminReviewMerchant는 아직 anon이 테이블을
-           직접 UPDATE하는 예전 방식이었으나, admin_set_account_frozen 등과 동일한
-           패턴(관리자 PIN 재검증 RPC + 해당 테이블의 anon UPDATE 권한 회수)으로
-           옮겼습니다. 서버(admin_review_topup)가 PIN을 다시 검증하고, 상태 전이와
-           잔액 반영을 하나의 트랜잭션 안에서 원자적으로 처리합니다. */
         async function adminReviewTopup(requestId, decision) {
             const admin = getCurrentUser();
             if (!admin || !admin.isAdmin) {
@@ -4670,7 +4696,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (!adminPin) return;
 
             try {
-                // 알림 발송에 필요한 정보만 미리 조회 (상태 변경은 RPC 안에서 수행)
                 const { data: reqRow } = await sbClient
                     .from('topup_requests')
                     .select('user_id, amount')
@@ -4799,7 +4824,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         async function openAdminUserDetail(userId) {
             const modal = document.getElementById('admin-user-detail-modal');
             const body = document.getElementById('admin-user-detail-body');
@@ -4815,7 +4839,8 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     return;
                 }
 
-                const { data: accounts } = await sbClient.from('accounts').select('*').eq('user_id', userId);
+                const { data: accountsRaw } = await sbClient.from('accounts').select('*').eq('user_id', userId);
+                const accounts = orderAccountRows(accountsRaw || [], null);
                 const accountIds = (accounts || []).map(a => a.id);
 
                 const { data: autoTransfers } = await sbClient
@@ -4955,7 +4980,8 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 }
 
                 const userIds = users.map(u => u.id);
-                const { data: accounts } = await sbClient.from('accounts').select('*').in('user_id', userIds);
+                const { data: accountsRaw } = await sbClient.from('accounts').select('*').in('user_id', userIds);
+                const accounts = orderAccountRows(accountsRaw || [], null);
 
                 listEl.innerHTML = users.map(u => {
                     const acc = (accounts || []).find(a => a.id === u.current_account_id) || (accounts || []).find(a => a.user_id === u.id);
@@ -4992,16 +5018,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
             }
         }
-
-        /* ------------------------------------------------------------------
-           아래 세 함수(adminToggleAccountFreeze / adminAdjustBalance /
-           adminDeleteUser)가 이번 보안 패치의 핵심입니다.
-           - 반드시 로그인된 사용자가 isAdmin이어야 시도조차 합니다(1차 방어,
-             클라이언트 체크라 우회 가능하다고 가정하고 서버에서 다시 검증함).
-           - promptAdminPin()으로 매 작업마다 관리자 본인 PIN을 새로 받습니다.
-           - 실제 서버 검증은 admin_set_account_frozen / admin_adjust_balance /
-             admin_delete_user RPC(마이그레이션 SQL 참고) 안에서 이루어집니다.
-        ------------------------------------------------------------------ */
 
         async function adminToggleAccountFreeze(accountId, newFrozenState, refreshUserId) {
             const admin = getCurrentUser();
@@ -5235,7 +5251,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
         async function refreshServerStatus() {
             const dot = document.getElementById('server-status-dot');
             const text = document.getElementById('server-status-text');
@@ -5345,8 +5360,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-        /* ==================== 자동이체 (주/월 정기이체) ==================== */
-
         const AUTO_TRANSFER_MAX_CATCHUP = 6;
         const AT_WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -5379,7 +5392,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             return atFormatDate(d);
         }
 
-
         function atAddMonths(dateStr, anchorDay) {
             const d = atParseDate(dateStr);
             const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
@@ -5392,7 +5404,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (row.cycle === 'weekly') return atAddWeeks(row.next_run_date, 1);
             return atAddMonths(row.next_run_date, row.day_of_month || atParseDate(row.next_run_date).getDate());
         }
-
 
         function atFirstRunWeekly(dow) {
             const today = new Date();
@@ -5419,7 +5430,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (row.cycle === 'weekly') return '매주 ' + AT_WEEKDAY_LABELS[row.day_of_week] + '요일';
             return '매월 ' + row.day_of_month + '일';
         }
-
 
         async function loadAutoTransfers() {
             const user = getCurrentUser();
@@ -5513,7 +5523,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
             renderAutoTransferBadge();
         }
-
 
         function setAutoTransferCycle(cycle) {
             state.autoTransferCycle = cycle;
@@ -5663,7 +5672,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             const newActive = !row.active;
             const patch = { active: newActive };
 
-
             if (newActive && row.next_run_date <= atToday()) {
                 patch.next_run_date = row.cycle === 'weekly'
                     ? atFirstRunWeekly(row.day_of_week)
@@ -5712,7 +5720,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             showToast('자동이체가 해지되었습니다.');
         }
 
-
         async function runDueAutoTransfers() {
             const user = getCurrentUser();
             if (!user) return;
@@ -5753,7 +5760,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             await loadAutoTransfers();
         }
 
-
         async function runSingleAutoTransfer(row) {
             const user = getCurrentUser();
             if (!user) return false;
@@ -5761,7 +5767,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             const dueDate = row.next_run_date;
             const nextDate = atNextRunDate(row);
             const amount = row.amount;
-
 
             let claimed = false;
             try {
@@ -5880,9 +5885,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-
-        /* ==================== 설정 (계정 정보 / PIN 변경 / 화면 모드 / 글씨 크기) ==================== */
-
         const SETTINGS_KEY = 'kdb_pay_settings_v1';
         const FONT_LABELS = { sm: '작게', md: '보통', lg: '크게' };
 
@@ -5893,11 +5895,10 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
         function saveDisplaySettings(patch) {
             const next = Object.assign(loadDisplaySettings(), patch);
-            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch (e) { /* 저장 불가 환경이면 이번 세션에만 적용 */ }
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch (e) { }
             return next;
         }
 
-        // <html> 에 dark 클래스 / data-fs 속성을 반영 (head 의 초기 스크립트와 같은 규칙)
         function applyDisplaySettings() {
             const s = loadDisplaySettings();
             const theme = s.theme === 'dark' ? 'dark' : 'light';
@@ -6023,7 +6024,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             if (btn) { btn.disabled = true; btn.innerText = '저장 중...'; }
 
             try {
-                // 1) 디스코드 ID 중복 확인 (본인 제외)
                 if (discord !== user.discord) {
                     const { data: dup, error: dupErr } = await sbClient
                         .from('users_public').select('id').eq('discord', discord).neq('id', user.id).limit(1);
@@ -6034,7 +6034,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     }
                 }
 
-                // 2) 저장
                 const { error: upErr } = await sbClient.from('users')
                     .update({ alias: alias, discord: discord })
                     .eq('id', user.id);
@@ -6043,7 +6042,6 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     throw upErr;
                 }
 
-                // 3) 실제 반영됐는지 확인 (권한 정책 때문에 조용히 0건 수정되는 경우 대비)
                 const { data: check, error: chkErr } = await sbClient
                     .from('users_public').select('alias, discord').eq('id', user.id).single();
                 if (chkErr) throw chkErr;
