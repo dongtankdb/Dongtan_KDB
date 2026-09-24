@@ -2759,6 +2759,40 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             updatePinDots();
         }
 
+        // 물리 키보드 숫자키/Backspace로도 PIN을 입력할 수 있게 지원.
+        // 관리자 PIN 재확인 모달은 자체 텍스트 입력창이 있으므로 건드리지 않음.
+        document.addEventListener('keydown', function(e) {
+            const adminPinModal = document.getElementById('modal-admin-pin');
+            if (adminPinModal && !adminPinModal.classList.contains('hidden')) return;
+
+            const isDigit = /^[0-9]$/.test(e.key);
+            const isBackspace = e.key === 'Backspace';
+            if (!isDigit && !isBackspace) return;
+
+            // 사용자 로그인 PIN 화면이 떠 있는 경우
+            const authScreen = document.getElementById('auth-screen');
+            const authPinSection = document.getElementById('auth-pin-section');
+            if (authScreen && !authScreen.classList.contains('hidden-auth') &&
+                authPinSection && !authPinSection.classList.contains('hidden')) {
+                e.preventDefault();
+                if (isDigit) pressPin(e.key);
+                else backspacePin();
+                return;
+            }
+
+            // 가맹점 로그인 PIN 화면이 떠 있는 경우
+            const posModal = document.getElementById('modal-pos');
+            const mchLoginView = document.getElementById('mch-login-view');
+            if (posModal && !posModal.classList.contains('hidden-modal') &&
+                mchLoginView && !mchLoginView.classList.contains('hidden') &&
+                state.merchantAuthMode === 'login') {
+                e.preventDefault();
+                if (isDigit) pressMerchantPin(e.key);
+                else backspaceMerchantPin();
+                return;
+            }
+        });
+
         function updatePinDots() {
             const dots = document.querySelectorAll('.pin-dot');
             dots.forEach((dot, idx) => {
@@ -2839,14 +2873,13 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     }
 
                     const security = Array.isArray(securityData) ? securityData[0] : securityData;
-                    const attemptsRemaining = Number(security?.attempts_remaining ?? 0);
                     const locked = !!security?.locked;
 
                     if (locked) {
                         showToast('로그인 5회 실패로 계정이 잠겼습니다. Discord DM을 확인해 주세요.');
                         await requestDiscordVerification(targetUserId);
                     } else {
-                        showToast('PIN 번호가 일치하지 않습니다. 남은 시도: ' + attemptsRemaining + '회');
+                        showToast('PIN 번호가 일치하지 않습니다.');
                     }
                 } catch (err) {
                     console.error('로그인 실패 처리 오류:', err);
