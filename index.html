@@ -2836,6 +2836,23 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             const enteredPin = state.enteredPin;
             if (!/^\d{4}$/.test(enteredPin)) return;
 
+            // 0) 현재 잠겨 있는 계정인지 먼저 확인 (5회 실패 시 5분간 잠금)
+            try {
+                const { data: lockData, error: lockError } = await sbClient.rpc('get_login_lock_status', {
+                    p_user_id: targetUserId
+                });
+                const lockRow = pickRpcRow(lockData);
+                if (!lockError && lockRow && lockRow.locked) {
+                    state.enteredPin = '';
+                    updatePinDots();
+                    const mins = Math.max(1, Math.ceil((lockRow.seconds_remaining || 0) / 60));
+                    showToast('로그인 5회 실패로 잠겨 있습니다. ' + mins + '분 후 다시 시도해 주세요.');
+                    return;
+                }
+            } catch (err) {
+                console.error('로그인 잠금 상태 확인 오류:', err);
+            }
+
             let row;
             try {
                 // 1) 먼저 정상 PIN인지 확인
@@ -2876,8 +2893,7 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                     const locked = !!security?.locked;
 
                     if (locked) {
-                        showToast('로그인 5회 실패로 계정이 잠겼습니다. Discord DM을 확인해 주세요.');
-                        await requestDiscordVerification(targetUserId);
+                        showToast('로그인 5회 실패로 5분 동안 로그인 시도가 제한됩니다.');
                     } else {
                         showToast('PIN 번호가 일치하지 않습니다.');
                     }
@@ -2888,20 +2904,18 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 return;
             }
 
-            // 3) 정상 로그인 성공 시 실패 횟수를 초기화
+            // 3) 정상 로그인 성공 시 실패 횟수를 초기화 (실패해도 로그인 자체는 막지 않음)
             try {
                 const { error: resetError } = await sbClient.rpc('reset_login_attempts', {
                     p_user_id: targetUserId
                 });
                 if (resetError) {
                     console.error('로그인 실패 횟수 초기화 오류:', resetError);
-                    showToast('로그인 보안 상태를 초기화하지 못했습니다. 잠시 후 다시 시도해 주세요.');
-                    return;
+                    showToast('로그인 보안 상태 초기화 실패: ' + (resetError.message || resetError.code || '알 수 없는 오류'));
                 }
             } catch (err) {
                 console.error('로그인 실패 횟수 초기화 오류:', err);
-                showToast('로그인 보안 상태를 초기화하지 못했습니다.');
-                return;
+                showToast('로그인 보안 상태 초기화 실패: ' + (err && err.message ? err.message : '알 수 없는 오류'));
             }
 
             let localUser = state.users.find(u => u.id === row.id);
