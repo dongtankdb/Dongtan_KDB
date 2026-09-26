@@ -4867,3 +4867,130 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 modal.classList.add('hidden-modal');
             }
         }
+
+// ==========================================
+// [루루봇 연동] 1. 기본 설정값
+// ==========================================
+const LULU_API_KEY = 'Securitykey_687482375616141585';
+const LULU_API_BASE_URL = 'http://vers.kro.kr:4000/api/KDBPay_Bank_Transfer';
+
+
+// ==========================================
+// [루루봇 연동] 2. 루루봇 서버로 요청 보내는 핵심 기능
+// ==========================================
+async function callLuluBankTransfer(discordId, payType, amount, reason) {
+  try {
+    // 한글 사유를 안전하게 변환
+    const encodedReason = encodeURIComponent(reason || 'KDBPay_Transfer');
+    
+    // 요청 주소 완성
+    const reqUrl = `${LULU_API_BASE_URL}/${LULU_API_KEY}/${discordId}/${payType}/${amount}/${encodedReason}`;
+
+    // 서버로 GET 요청 보내기
+    const response = await fetch(reqUrl, { method: 'GET' });
+    const result = await response.json().catch(() => ({}));
+
+    // 응답 결과 확인 (상태코드 201 및 ok true일 때 성공)
+    if (response.status === 201 && result.ok) {
+      return result.data;
+    } else {
+      alert(result.message || '루루봇 연동 처리 중 오류가 발생했습니다.');
+      return null;
+    }
+  } catch (err) {
+    console.error('네트워크 오류:', err);
+    alert('루루봇 서버와 연결하지 못했습니다.');
+    return null;
+  }
+}
+
+
+// ==========================================
+// [루루봇 연동] 3. '충전하기' 버튼 눌렀을 때 작동할 코드
+// ==========================================
+async function handleLuluDeposit() {
+  // 1. 디스코드 ID 가져오기 (본인 서비스의 디스코드 ID 변수/기능으로 변경 가능)
+  // 예시: 디스코드 ID를 직접 물어보거나 로그인한 사용자 정보에서 가져옴
+  let discordId = window.currentUser?.discord_id || window.currentUser?.id;
+
+  if (!discordId) {
+    discordId = prompt('디스코드 ID를 입력하세요:');
+    if (!discordId) return;
+  }
+
+  // 2. 충전할 금액 입력받기
+  const inputAmount = prompt('루루봇으로부터 불러올 충전 금액을 입력하세요:');
+  if (!inputAmount) return;
+
+  const amount = parseInt(inputAmount, 10);
+  if (isNaN(amount) || amount <= 0) {
+    alert('올바른 금액을 숫자로 입력해 주세요.');
+    return;
+  }
+
+  // 3. API 호출 (Deposit = 충전)
+  const data = await callLuluBankTransfer(discordId, 'Deposit', amount, 'KDBPay 충전');
+
+  // 4. 성공 처리
+  if (data) {
+    alert(`성공적으로 ${amount.toLocaleString()}원이 충전되었습니다!`);
+    
+    // 만약 잔액 갱신 함수가 있다면 호출해서 화면 잔액 새로고침
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof loadUserData === 'function') loadUserData();
+  }
+}
+
+
+// ==========================================
+// [루루봇 연동] 4. '출금하기' 버튼 눌렀을 때 작동할 코드
+// ==========================================
+async function handleLuluWithdraw() {
+  // 1. 디스코드 ID 가져오기
+  let discordId = window.currentUser?.discord_id || window.currentUser?.id;
+
+  if (!discordId) {
+    discordId = prompt('디스코드 ID를 입력하세요:');
+    if (!discordId) return;
+  }
+
+  // 2. 출금할 금액 입력받기
+  const inputAmount = prompt('루루봇으로 보내실 출금 금액을 입력하세요:');
+  if (!inputAmount) return;
+
+  const amount = parseInt(inputAmount, 10);
+  if (isNaN(amount) || amount <= 0) {
+    alert('올바른 금액을 숫자로 입력해 주세요.');
+    return;
+  }
+
+  // 3. API 호출 (Withdrawal = 출금)
+  const data = await callLuluBankTransfer(discordId, 'Withdrawal', amount, 'KDBPay 출금');
+
+  // 4. 성공 처리
+  if (data) {
+    alert(`성공적으로 ${amount.toLocaleString()}원이 출금되었습니다!`);
+
+    // 잔액 갱신 함수가 있다면 호출
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof loadUserData === 'function') loadUserData();
+  }
+}
+
+
+// ==========================================
+// [루루봇 연동] 5. 버튼 클릭 이벤트 연결
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  // 충전 버튼 클릭 연결
+  const depositBtn = document.getElementById('btn-lulu-deposit');
+  if (depositBtn) {
+    depositBtn.addEventListener('click', handleLuluDeposit);
+  }
+
+  // 출금 버튼 클릭 연결
+  const withdrawBtn = document.getElementById('btn-lulu-withdraw');
+  if (withdrawBtn) {
+    withdrawBtn.addEventListener('click', handleLuluWithdraw);
+  }
+});
