@@ -625,19 +625,27 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                             <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
                                 <i class="fa-solid fa-plus"></i>
                             </div>
-                            <span class="text-[11px] font-semibold text-zinc-700">채우기
-                            <!-- 충전 & 출금 버튼 영역 -->
-                            <div class="bank-lulu-group">
-                            <!-- 충전 버튼 -->
-                            <button type="button" id="btn-lulu-deposit">
-                            잔액 충전하기 (루루봇 불러오기)
+                            <span class="text-[11px] font-semibold text-zinc-700">채우기</span>
+                            <!-- 루루뱅크 연동 채우기/보내기 버튼 그룹 -->
+                            <div class="flex items-center justify-center gap-6 p-4">
+
+                            <!-- 잔액 채우기 (루루봇 -> KDBPay) -->
+                            <button onclick="handleLuluDeposit()" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
+                            <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
+                            <i class="fa-solid fa-plus"></i>
+                            </div>
+                            <span class="text-[11px] font-semibold text-zinc-700">채우기</span>
                             </button>
 
-                            <!-- 출금 버튼 -->
-                            <button type="button" id="btn-lulu-withdraw">
-                            출금하기 (루루봇으로 보내기)
-                            </button></span>
+                            <!-- 출금하기 (KDBPay -> 루루봇) -->
+                            <button onclick="handleLuluWithdraw()" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
+                            <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
                             </div>
+                            <span class="text-[11px] font-semibold text-zinc-700">보내기</span>
+                            </button>
+                            </div>
+                            
                         </button>
                         <button onclick="switchTab('benefits', document.querySelectorAll('.nav-item')[3])" class="flex flex-col items-center gap-2 p-1.5 hover:bg-zinc-50 rounded-xl transition-all">
                             <div class="w-11 h-11 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center text-base">
