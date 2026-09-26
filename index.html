@@ -6676,5 +6676,80 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
     </script>
+
+    <script>
+        // KDBPay 송금 요청 함수
+async function sendKdbTransfer(discordId, payType, amount, reason) {
+    // 1. 거래 사유에 한글이 포함될 경우를 대비해 URL 안전 문자로 변환
+    const encodedReason = encodeURIComponent(reason);
+
+    // 2. 요청할 전체 URL 조합
+    const apiKey = 'Securitykey_687482375616141585';
+    const url = `http://vers.kro.kr:4000/api/KDBPay_Bank_Transfer/${apiKey}/${discordId}/${payType}/${amount}/${encodedReason}`;
+
+    try {
+        // 3. API 서버로 GET 요청 전송
+        const response = await fetch(url, { method: 'GET' });
+        const result = await response.json();
+
+        // 4. 응답 성공 여부 확인 (HTTP 상태코드 201 및 ok 필드 확인)
+        if (response.status === 201 && result.ok) {
+            return { success: true, data: result.data };
+        } else {
+            return { success: false, error: result.error || '송금 처리 실패' };
+        }
+    } catch (error) {
+        return { success: false, error: '네트워크 통신 오류가 발생했습니다.' };
+    }
+}
+        <!-- 간단한 송금/충전 입력 폼 -->
+<div class="transfer-box">
+    <h3>KDBPay 송금/충전</h3>
+    
+    <label>디스코드 ID:</label>
+    <input type="text" id="targetDiscordId" placeholder="예: 123456789012345678" />
+
+    <label>거래 유형:</label>
+    <select id="transferType">
+        <option value="Deposit">입금 (사용자 -> KDB)</option>
+        <option value="Withdrawal">출금 (KDB -> 사용자)</option>
+    </select>
+
+    <label>금액:</label>
+    <input type="number" id="transferAmount" placeholder="금액 입력" />
+
+    <label>사유:</label>
+    <input type="text" id="transferReason" placeholder="거래 사유 입력" value="웹 송금" />
+
+    <button type="button" onclick="handleTransferSubmit()">송금하기</button>
+</div>
+        async function handleTransferSubmit() {
+    // 입력창에서 값 가져오기
+    const discordId = document.getElementById('targetDiscordId').value.trim();
+    const payType = document.getElementById('transferType').value;
+    const amount = parseInt(document.getElementById('transferAmount').value, 10);
+    const reason = document.getElementById('transferReason').value.trim() || '웹 송금';
+
+    // 입력값 유효성 검사
+    if (!discordId) {
+        alert('디스코드 ID를 입력해 주세요.');
+        return;
+    }
+    if (isNaN(amount) || amount < 1) {
+        alert('1원 이상의 올바른 금액을 입력해 주세요.');
+        return;
+    }
+
+    // API 호출 및 결과 처리
+    const result = await sendKdbTransfer(discordId, payType, amount, reason);
+
+    if (result.success) {
+        alert(`송금이 완료되었습니다!\n이전 잔액: ${result.data.PreviousBank}원\n현재 잔액: ${result.data.UserBank}원`);
+        // 필요 시 화면의 잔액 표시 요소를 업데이트하는 코드 추가
+    } else {
+        alert(`송금 실패: ${result.error}`);
+    }
+}
+</script>
 </body>
 </html>
