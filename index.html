@@ -6678,78 +6678,168 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
     </script>
 
     <script>
-        // KDBPay 송금 요청 함수
-async function sendKdbTransfer(discordId, payType, amount, reason) {
-    // 1. 거래 사유에 한글이 포함될 경우를 대비해 URL 안전 문자로 변환
-    const encodedReason = encodeURIComponent(reason);
+// ================= ================= =================
+// LuLu Bank × KDBPay API 연동 모듈
+// ================= ================= =================
 
-    // 2. 요청할 전체 URL 조합
-    const apiKey = 'Securitykey_687482375616141585';
-    const url = `http://vers.kro.kr:4000/api/KDBPay_Bank_Transfer/${apiKey}/${discordId}/${payType}/${amount}/${encodedReason}`;
+const KDB_PAY_CONFIG = {
+  API_KEY: 'Securitykey_687482375616141585',
+  BASE_URL: 'http://vers.kro.kr:4000/api/KDBPay_Bank_Transfer',
+  // CORS 오류 발생 시 활성화할 프록시 (필요시 사용)
+  USE_CORS_PROXY: false,
+  CORS_PROXY: 'https://corsproxy.io/?'
+};
 
-    try {
-        // 3. API 서버로 GET 요청 전송
-        const response = await fetch(url, { method: 'GET' });
-        const result = await response.json();
+/**
+ * LuLu Bank x KDBPay 송금 API 호출 함수
+ * @param {string} discordId 거래 대상 디스코드 ID
+ * @param {'Deposit'|'Withdrawal'} payType 거래 방향 (Deposit: 사용자->KDB, Withdrawal: KDB->사용자)
+ * @param {number} amount 거래 금액 (1 이상의 정수)
+ * @param {string} reason 거래 사유
+ */
+async function callKDBPayTransferAPI(discordId, payType, amount, reason) {
+  const encodedReason = encodeURIComponent(reason || 'KDBPayTransfer');
+  let requestUrl = `${KDB_PAY_CONFIG.BASE_URL}/${KDB_PAY_CONFIG.API_KEY}/${discordId}/${payType}/${amount}/${encodedReason}`;
 
-        // 4. 응답 성공 여부 확인 (HTTP 상태코드 201 및 ok 필드 확인)
-        if (response.status === 201 && result.ok) {
-            return { success: true, data: result.data };
-        } else {
-            return { success: false, error: result.error || '송금 처리 실패' };
-        }
-    } catch (error) {
-        return { success: false, error: '네트워크 통신 오류가 발생했습니다.' };
-    }
-}
-        <!-- 간단한 송금/충전 입력 폼 -->
-<div class="transfer-box">
-    <h3>KDBPay 송금/충전</h3>
-    
-    <label>디스코드 ID:</label>
-    <input type="text" id="targetDiscordId" placeholder="예: 123456789012345678" />
+  if (KDB_PAY_CONFIG.USE_CORS_PROXY) {
+    requestUrl = KDB_PAY_CONFIG.CORS_PROXY + encodeURIComponent(requestUrl);
+  }
 
-    <label>거래 유형:</label>
-    <select id="transferType">
-        <option value="Deposit">입금 (사용자 -> KDB)</option>
-        <option value="Withdrawal">출금 (KDB -> 사용자)</option>
-    </select>
+  try {
+    const response = await fetch(requestUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
 
-    <label>금액:</label>
-    <input type="number" id="transferAmount" placeholder="금액 입력" />
-
-    <label>사유:</label>
-    <input type="text" id="transferReason" placeholder="거래 사유 입력" value="웹 송금" />
-
-    <button type="button" onclick="handleTransferSubmit()">송금하기</button>
-</div>
-        async function handleTransferSubmit() {
-    // 입력창에서 값 가져오기
-    const discordId = document.getElementById('targetDiscordId').value.trim();
-    const payType = document.getElementById('transferType').value;
-    const amount = parseInt(document.getElementById('transferAmount').value, 10);
-    const reason = document.getElementById('transferReason').value.trim() || '웹 송금';
-
-    // 입력값 유효성 검사
-    if (!discordId) {
-        alert('디스코드 ID를 입력해 주세요.');
-        return;
-    }
-    if (isNaN(amount) || amount < 1) {
-        alert('1원 이상의 올바른 금액을 입력해 주세요.');
-        return;
+    if (!response.ok) {
+      throw new Error(`API 오류: HTTP Status ${response.status}`);
     }
 
-    // API 호출 및 결과 처리
-    const result = await sendKdbTransfer(discordId, payType, amount, reason);
+    const resData = await response.json();
 
-    if (result.success) {
-        alert(`송금이 완료되었습니다!\n이전 잔액: ${result.data.PreviousBank}원\n현재 잔액: ${result.data.UserBank}원`);
-        // 필요 시 화면의 잔액 표시 요소를 업데이트하는 코드 추가
+    if (resData.ok && resData.data) {
+      return {
+        success: true,
+        data: resData.data
+      };
     } else {
-        alert(`송금 실패: ${result.error}`);
+      return {
+        success: false,
+        error: resData.error || '거래 처리에 실패했습니다.'
+      };
     }
+  } catch (error) {
+    console.error('KDBPay API 연동 에러:', error);
+    return {
+      success: false,
+      error: error.message || '네트워크 통신 중 오류가 발생했습니다.'
+    };
+  }
 }
-</script>
+
+// ================= ================= =================
+// 기존 기능 연동 오버라이드 함수
+// ================= ================= =================
+
+/**
+ * 1. 계좌 이체 실행 (사용자 계좌 -> KDB 계좌 / Deposit)
+ */
+async function confirmTransfer() {
+  const recipient = document.getElementById('transfer-recipient').value.trim();
+  const amount = parseInt(document.getElementById('transfer-amount').value, 10);
+  const memo = document.getElementById('transfer-memo').value.trim() || '이체';
+  
+  // 현재 로그인한 사용자의 Discord ID 가져오기
+  const currentUserDiscord = currentUser ? currentUser.discord_id : null;
+
+  if (!currentUserDiscord) {
+    showToast('로그인 정보가 올바르지 않습니다.');
+    return;
+  }
+
+  if (!amount || amount < 1) {
+    showToast('올바른 이체 금액을 입력해주세요.');
+    return;
+  }
+
+  const btn = document.getElementById('transfer-confirm-btn');
+  btn.disabled = true;
+  btn.innerText = '처리 중...';
+
+  // API 호출: Deposit (사용자 계좌 -> KDB 계좌)
+  const result = await callKDBPayTransferAPI(currentUserDiscord, 'Deposit', amount, memo);
+
+  btn.disabled = false;
+  btn.innerText = '이체하기';
+
+  if (result.success) {
+    showToast(`성공적으로 ${amount.toLocaleString()}원이 이체되었습니다.`);
+    closeModal('modal-transfer-confirm');
+    closeModal('modal-transfer');
+    
+    // UI 잔액 업데이트
+    if (result.data.UserBank !== undefined) {
+      updateLocalBalanceUI(result.data.UserBank);
+    }
+    refreshData(); // 전체 데이터 갱신
+  } else {
+    alert(`이체 실패: ${result.error}`);
+  }
+}
+
+/**
+ * 2. 잔액 출금/채우기 실행 (KDB 계좌 -> 사용자 계좌 / Withdrawal)
+ */
+async function submitTopupRequest() {
+  const amount = parseInt(document.getElementById('deposit-amount').value, 10);
+  const memo = document.getElementById('deposit-memo').value.trim() || '잔액 채우기';
+  const currentUserDiscord = currentUser ? currentUser.discord_id : null;
+
+  if (!currentUserDiscord) {
+    showToast('로그인 정보가 올바르지 않습니다.');
+    return;
+  }
+
+  if (!amount || amount < 1) {
+    showToast('올바른 충전 금액을 입력해주세요.');
+    return;
+  }
+
+  const btn = document.getElementById('deposit-submit-btn');
+  btn.disabled = true;
+  btn.innerText = '처리 중...';
+
+  // API 호출: Withdrawal (KDB 계좌 -> 사용자 계좌)
+  const result = await callKDBPayTransferAPI(currentUserDiscord, 'Withdrawal', amount, memo);
+
+  btn.disabled = false;
+  btn.innerText = '충전 요청 보내기';
+
+  if (result.success) {
+    showToast(`${amount.toLocaleString()}원이 성공적으로 계좌에 출금/입금되었습니다.`);
+    closeModal('modal-deposit');
+    
+    // UI 잔액 업데이트
+    if (result.data.UserBank !== undefined) {
+      updateLocalBalanceUI(result.data.UserBank);
+    }
+    refreshData();
+  } else {
+    alert(`충전/출금 실패: ${result.error}`);
+  }
+}
+
+/**
+ * 잔액 UI 즉시 반영 함수
+ */
+function updateLocalBalanceUI(newUserBankBalance) {
+  const mainBalanceEl = document.getElementById('main-balance');
+  if (mainBalanceEl) {
+    mainBalanceEl.innerText = newUserBankBalance.toLocaleString();
+  }
+}
+  </script>
 </body>
 </html>
