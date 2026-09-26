@@ -100,6 +100,39 @@
             }
         }
 
+        /* 홈 화면 광고 배너 카드: 이미지를 채우면 자동으로 페이드 전환되며
+           슬라이드됩니다. 이미지가 없으면 카드 자체가 표시되지 않습니다. */
+        #home-ad-banner {
+            position: relative;
+            height: 120px;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .ad-slide {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.9s ease;
+        }
+        .ad-slide.active {
+            opacity: 1;
+        }
+        .ad-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(160deg, #4338ca 0%, #0ea5e9 100%);
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 800;
+            font-size: 14px;
+            letter-spacing: 0.15em;
+        }
+
         .tab-content {
             display: flex;
             flex-direction: column;
@@ -527,6 +560,8 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             <span id="main-balance" class="hidden">0</span>
 
             <div class="px-4 pb-6 space-y-3">
+
+                <div id="home-ad-banner" class="hidden shadow-sm"></div>
 
                 <div onclick="switchTab('shop', document.querySelectorAll('.nav-item')[1])" class="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm cursor-pointer active:scale-[0.99] transition-transform">
                     <div class="flex items-center gap-3 min-w-0">
@@ -1731,6 +1766,20 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 </div>
             </div>
         </div>
+
+        <div id="admin-merchant-detail-modal" class="hidden fixed inset-0 z-[600] bg-black/60 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">
+                <div class="flex justify-between items-center p-5 border-b border-zinc-200 sticky top-0 bg-white">
+                    <h3 class="font-bold text-base text-zinc-900">가맹점 상세 정보</h3>
+                    <button onclick="closeAdminMerchantDetail()" class="text-zinc-400 hover:text-zinc-600 p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <div id="admin-merchant-detail-body" class="p-5">
+                    <div class="text-center py-6 text-xs text-zinc-400">불러오는 중...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="modal-admin-pin" class="hidden fixed inset-0 z-[700] bg-black/70 flex items-center justify-center p-4">
@@ -2027,8 +2076,57 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }));
         }
 
+        /* ==================== 홈 화면 광고 배너 카드 ====================
+           아래 배열에 이미지를 추가하면 홈 화면 맨 위에 카드 형태로
+           나타나서 AD_SLIDE_INTERVAL_MS 주기로 슬라이드(페이드) 전환됩니다.
+           배열이 비어 있으면 카드 자체가 표시되지 않습니다.
+           src에는 이미지 URL이나 base64 data URI를 넣으면 되고,
+           link는 선택사항으로, 지정하면 클릭 시 새 탭으로 이동합니다.
+
+           예시:
+           const AD_BANNERS = [
+               { src: 'https://example.com/ad1.jpg', link: 'https://example.com' },
+               { src: 'https://example.com/ad2.jpg' }
+           ];
+        ==================================================================== */
+        const AD_BANNERS = [
+            // { src: '이미지 URL 또는 data:image/... base64', link: '선택 사항' },
+        ];
+        const AD_SLIDE_INTERVAL_MS = 4000;
+
+        function initAdPanels() {
+            const banner = document.getElementById('home-ad-banner');
+            if (!banner) return;
+
+            if (!AD_BANNERS.length) {
+                banner.classList.remove('hidden');
+                banner.innerHTML = '<div class="ad-placeholder">AD</div>';
+                return;
+            }
+
+            banner.classList.remove('hidden');
+            banner.innerHTML = AD_BANNERS.map((img, idx) => {
+                const slideImg = '<img src="' + img.src + '" class="ad-slide' + (idx === 0 ? ' active' : '') + '" alt="광고">';
+                return img.link
+                    ? '<a href="' + img.link + '" target="_blank" rel="noopener">' + slideImg + '</a>'
+                    : slideImg;
+            }).join('');
+
+            if (AD_BANNERS.length > 1) {
+                let current = 0;
+                setInterval(() => {
+                    const slides = banner.querySelectorAll('.ad-slide');
+                    if (!slides.length) return;
+                    slides[current].classList.remove('active');
+                    current = (current + 1) % slides.length;
+                    slides[current].classList.add('active');
+                }, AD_SLIDE_INTERVAL_MS);
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', async () => {
             startVersionCheckPolling();
+            initAdPanels();
 
             showToast('서버에서 데이터를 불러오는 중입니다...');
             await loadAppData();
@@ -5094,7 +5192,7 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
             }
         }
 
-        async function adminReviewMerchant(merchantId, decision) {
+        async function adminReviewMerchant(merchantId, decision, refreshDetail) {
             const admin = getCurrentUser();
             if (!admin || !admin.isAdmin) {
                 showToast('관리자만 가능합니다.');
@@ -5127,6 +5225,7 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 showToast(decision === 'approved' ? '가맹점을 승인했습니다.' : '가맹점 가입을 거절했습니다.');
                 renderAdminPendingMerchants();
                 renderAdminMerchantList(document.getElementById('admin-merchant-search') ? document.getElementById('admin-merchant-search').value : '');
+                if (refreshDetail) openAdminMerchantDetail(merchantId);
             } catch (err) {
                 console.error('가맹점 승인 처리 오류:', err);
                 showToast('처리 중 오류가 발생했습니다.');
@@ -5257,6 +5356,100 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
 
         function closeAdminUserDetail() {
             const modal = document.getElementById('admin-user-detail-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function openAdminMerchantDetail(merchantId) {
+            const modal = document.getElementById('admin-merchant-detail-modal');
+            const body = document.getElementById('admin-merchant-detail-body');
+            if (!modal || !body) return;
+
+            body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">불러오는 중...</div>';
+            modal.classList.remove('hidden');
+
+            try {
+                const { data: mch, error: mErr } = await sbClient.from('merchants_public').select('*').eq('id', merchantId).single();
+                if (mErr || !mch) {
+                    body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">가맹점 정보를 불러오지 못했습니다.</div>';
+                    return;
+                }
+
+                const { data: salesRaw } = await sbClient
+                    .from('merchant_sales')
+                    .select('*')
+                    .eq('merchant_id', merchantId)
+                    .order('created_at', { ascending: false })
+                    .limit(30);
+                const sales = salesRaw || [];
+
+                const statusLabel = mch.status === 'pending' ? '승인대기' : (mch.status === 'rejected' ? '거절됨' : '승인됨');
+                const statusClass = mch.status === 'pending' ? 'bg-amber-100 text-amber-700' : (mch.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700');
+
+                const salesHtml = sales.length ? sales.map(s => {
+                    const feeAmount = s.fee_amount || 0;
+                    const netAmount = s.amount - feeAmount;
+                    const feeNote = feeAmount ? '<div class="text-[10px] text-zinc-400 mt-0.5">수수료 ' + formatNumber(feeAmount) + '원 차감 · 실수령 ' + formatNumber(netAmount) + '원</div>' : '';
+                    const settledBadge = '<span class="text-[10px] ' + (s.settled ? 'text-emerald-600 font-bold' : 'text-amber-600 font-bold') + '">' + (s.settled ? '정산완료' : '미정산') + '</span>';
+                    return '<div class="flex justify-between items-center py-2 border-b border-zinc-100 last:border-0">' +
+                        '<div>' +
+                            '<div class="text-xs font-bold text-zinc-800">' + escapeHtml(s.title || '') + '</div>' +
+                            '<div class="text-[10px] text-zinc-400">' + formatRelativeDate(s.created_at) + '</div>' +
+                            feeNote +
+                        '</div>' +
+                        '<div class="text-right">' +
+                            '<div class="text-xs font-bold text-zinc-900">' + formatNumber(s.amount) + '원</div>' +
+                            settledBadge +
+                        '</div>' +
+                    '</div>';
+                }).join('') : '<div class="text-xs text-zinc-400 py-3 text-center">매출/정산 내역이 없습니다.</div>';
+
+                const actionButtonsHtml =
+                    '<div class="flex gap-1.5 mt-3">' +
+                        '<button onclick="adminReviewMerchant(\'' + mch.id + '\', \'rejected\', true)" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-xs font-bold">거절 처리</button>' +
+                        '<button onclick="adminReviewMerchant(\'' + mch.id + '\', \'approved\', true)" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-bold">승인 처리</button>' +
+                    '</div>';
+
+                body.innerHTML =
+                    '<div class="flex items-center gap-3 mb-4">' +
+                        '<div class="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center text-white font-bold text-lg">' +
+                            '<i class="fa-solid ' + getCategoryIcon(mch.category) + '"></i>' +
+                        '</div>' +
+                        '<div>' +
+                            '<div class="font-bold text-sm text-zinc-900 flex items-center gap-1.5">' + escapeHtml(mch.name) +
+                                '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ' + statusClass + '">' + statusLabel + '</span>' +
+                            '</div>' +
+                            '<div class="text-xs text-zinc-400">' + escapeHtml(mch.category || '') + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="grid grid-cols-2 gap-2 mb-4">' +
+                        '<div class="bg-zinc-50 rounded-xl p-3 border border-zinc-100">' +
+                            '<div class="text-[10px] text-zinc-400 mb-1">사업자번호</div>' +
+                            '<div class="text-xs font-bold text-zinc-900 font-mono">' + escapeHtml(mch.biz_no || '-') + '</div>' +
+                        '</div>' +
+                        '<div class="bg-zinc-50 rounded-xl p-3 border border-zinc-100">' +
+                            '<div class="text-[10px] text-zinc-400 mb-1">정산 계좌</div>' +
+                            '<div class="text-xs font-bold text-zinc-900 font-mono">' + escapeHtml(mch.account_no || '-') + '</div>' +
+                        '</div>' +
+                        '<div class="bg-zinc-50 rounded-xl p-3 border border-zinc-100">' +
+                            '<div class="text-[10px] text-zinc-400 mb-1">총 누적 매출</div>' +
+                            '<div class="text-sm font-extrabold text-zinc-900">' + formatNumber(mch.total_sales || 0) + '원</div>' +
+                        '</div>' +
+                        '<div class="bg-zinc-50 rounded-xl p-3 border border-zinc-100">' +
+                            '<div class="text-[10px] text-zinc-400 mb-1">미정산 금액</div>' +
+                            '<div class="text-sm font-extrabold text-amber-600">' + formatNumber(mch.unsettled_balance || 0) + '원</div>' +
+                        '</div>' +
+                    '</div>' +
+                    actionButtonsHtml +
+                    '<h4 class="font-bold text-xs text-zinc-800 mb-2 mt-4">최근 매출 및 정산 내역 (최대 30건)</h4>' +
+                    '<div class="border border-zinc-200 rounded-xl p-3">' + salesHtml + '</div>';
+            } catch (err) {
+                console.error('가맹점 상세 조회 오류:', err);
+                body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        function closeAdminMerchantDetail() {
+            const modal = document.getElementById('admin-merchant-detail-modal');
             if (modal) modal.classList.add('hidden');
         }
 
@@ -5498,18 +5691,21 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
                 listEl.innerHTML = merchants.map(m => {
                     const statusLabel = m.status === 'pending' ? '승인대기' : (m.status === 'rejected' ? '거절됨' : '승인됨');
                     const statusClass = m.status === 'pending' ? 'bg-amber-100 text-amber-700' : (m.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700');
-                    return '<div class="border border-zinc-200 rounded-xl p-3 flex justify-between items-center">' +
-                        '<div>' +
-                            '<div class="flex items-center gap-1.5">' +
-                                '<div class="text-xs font-bold text-zinc-900">' + escapeHtml(m.name) + '</div>' +
-                                '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ' + statusClass + '">' + statusLabel + '</span>' +
+                    return '<div class="border border-zinc-200 rounded-xl p-3">' +
+                        '<div class="flex justify-between items-center mb-2">' +
+                            '<div class="cursor-pointer" onclick="openAdminMerchantDetail(\'' + m.id + '\')">' +
+                                '<div class="flex items-center gap-1.5">' +
+                                    '<div class="text-xs font-bold text-zinc-900 hover:underline">' + escapeHtml(m.name) + '</div>' +
+                                    '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ' + statusClass + '">' + statusLabel + '</span>' +
+                                '</div>' +
+                                '<div class="text-[10px] text-zinc-400">' + escapeHtml(m.category || '') + ' | 사업자번호 ' + escapeHtml(m.biz_no || '') + '</div>' +
                             '</div>' +
-                            '<div class="text-[10px] text-zinc-400">' + escapeHtml(m.category || '') + ' | 사업자번호 ' + escapeHtml(m.biz_no || '') + '</div>' +
+                            '<div class="text-right text-[10px] text-zinc-500">' +
+                                '<div>누적매출 ' + formatNumber(m.total_sales || 0) + '원</div>' +
+                                '<div>미정산 ' + formatNumber(m.unsettled_balance || 0) + '원</div>' +
+                            '</div>' +
                         '</div>' +
-                        '<div class="text-right text-[10px] text-zinc-500">' +
-                            '<div>누적매출 ' + formatNumber(m.total_sales || 0) + '원</div>' +
-                            '<div>미정산 ' + formatNumber(m.unsettled_balance || 0) + '원</div>' +
-                        '</div>' +
+                        '<button onclick="openAdminMerchantDetail(\'' + m.id + '\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">상세보기</button>' +
                     '</div>';
                 }).join('');
             } catch (err) {
