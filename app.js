@@ -97,7 +97,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         discord: user.discord,
                         uid: user.uid,
                         current_account_id: user.currentAccountId || null,
-                        purchased_items: user.purchasedItems || []
+                        purchased_items: user.purchasedItems || [],
+                        discord_numeric_id: user.discordNumericId || null
                     }]);
 
                     const accountRows = (user.accounts || []).map(acc => ({
@@ -196,7 +197,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 attendanceHistory: u.attendance_history || {},
                 purchasedItems: u.purchased_items || [],
                 isAdmin: u.is_admin || false,
-                isFrozen: u.is_frozen || false
+                isFrozen: u.is_frozen || false,
+                discordNumericId: u.discord_numeric_id || ''
             }));
 
             if (merchants && merchants.length) {
@@ -1222,6 +1224,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             localUser.purchasedItems = row.purchased_items || [];
             localUser.isAdmin = row.is_admin || false;
             localUser.isFrozen = row.is_frozen || false;
+            localUser.discordNumericId = row.discord_numeric_id || '';
 
             state.currentUserId = row.id;
             addKnownAccountId(row.id);
@@ -2259,6 +2262,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             document.getElementById('edit-user-name').value = user.alias;
             document.getElementById('edit-user-discord').value = user.discord;
+            const numIdInput = document.getElementById('edit-user-discord-numeric-id');
+            if (numIdInput) numIdInput.value = user.discordNumericId || '';
             openModal('modal-profile');
         }
 
@@ -2268,14 +2273,22 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const newName = document.getElementById('edit-user-name').value.trim();
             const newDiscord = document.getElementById('edit-user-discord').value.trim();
+            const numIdInput = document.getElementById('edit-user-discord-numeric-id');
+            const newNumericId = numIdInput ? numIdInput.value.trim() : '';
 
             if (!newName) {
                 showToast('이름을 입력해 주세요.');
                 return;
             }
 
+            if (newNumericId && !/^\d{15,25}$/.test(newNumericId)) {
+                showToast('디스코드 숫자 ID는 숫자로만 입력해 주세요 (설정 → 고급 → 개발자 모드 켜고, 프로필 우클릭 → ID 복사).');
+                return;
+            }
+
             user.alias = newName;
             if (newDiscord) user.discord = newDiscord;
+            user.discordNumericId = newNumericId;
 
             saveAppData();
             closeModal('modal-profile');
@@ -3159,6 +3172,139 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const resolve = _adminPinResolve;
             _adminPinResolve = null;
             if (resolve) resolve(null);
+        }
+
+        /* ==================== 루루봇(디스코드 은행봇) 연동 ====================
+           실제 자금이 오가는 작업이라, 매번 본인 로그인 PIN을 다시 확인받은
+           뒤에만 Supabase Edge Function('bank-bot-transfer')을 호출합니다.
+           API 키/봇 서버 주소는 브라우저 코드에 절대 넣지 않고, Edge Function
+           안에서만(Supabase Secret) 사용합니다.
+        ==================================================================== */
+        let _userPinResolve = null;
+
+        function promptUserPin() {
+            return new Promise((resolve) => {
+                _userPinResolve = resolve;
+                const input = document.getElementById('user-pin-input');
+                if (input) input.value = '';
+                const modal = document.getElementById('modal-user-pin');
+                if (modal) modal.classList.remove('hidden');
+                setTimeout(() => { if (input) input.focus(); }, 150);
+            });
+        }
+
+        function submitUserPinPrompt() {
+            const input = document.getElementById('user-pin-input');
+            const pin = input ? input.value.trim() : '';
+            if (!pin || pin.length !== 4) {
+                showToast('4자리 PIN을 입력해 주세요.');
+                return;
+            }
+            const modal = document.getElementById('modal-user-pin');
+            if (modal) modal.classList.add('hidden');
+            const resolve = _userPinResolve;
+            _userPinResolve = null;
+            if (resolve) resolve(pin);
+        }
+
+        function cancelUserPinPrompt() {
+            const modal = document.getElementById('modal-user-pin');
+            if (modal) modal.classList.add('hidden');
+            const resolve = _userPinResolve;
+            _userPinResolve = null;
+            if (resolve) resolve(null);
+        }
+
+        async function callBankBotTransfer(direction) {
+            const user = getCurrentUser();
+            const activeAcc = getActiveAccount();
+            if (!user || !activeAcc) return;
+
+            if (!user.discordNumericId) {
+                showToast('먼저 마이페이지 → 프로필 수정에서 디스코드 숫자 ID를 등록해 주세요.');
+                return;
+            }
+
+            const amtInput = document.getElementById('bot-transfer-amount');
+            const memoInput = document.getElementById('bot-transfer-memo');
+            const amount = amtInput ? parseInt(amtInput.value) : 0;
+            const memo = memoInput ? memoInput.value.trim() : '';
+
+            if (!amount || amount <= 0) {
+                showToast('금액을 올바르게 입력해 주세요.');
+                return;
+            }
+
+            if (direction === 'withdrawal' && activeAcc.balance < amount) {
+                showToast('계좌 잔액이 부족합니다.');
+                return;
+            }
+
+            const pin = await promptUserPin();
+            if (!pin) return;
+
+            const btnId = direction === 'deposit' ? 'bot-deposit-btn' : 'bot-withdraw-btn';
+            const btn = document.getElementById(btnId);
+            const otherBtnId = direction === 'deposit' ? 'bot-withdraw-btn' : 'bot-deposit-btn';
+            const otherBtn = document.getElementById(otherBtnId);
+            const originalHtml = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 처리 중...'; }
+            if (otherBtn) otherBtn.disabled = true;
+
+            try {
+                const { data, error } = await sbClient.functions.invoke('bank-bot-transfer', {
+                    body: {
+                        user_id: user.id,
+                        pin: pin,
+                        account_id: activeAcc.id,
+                        direction: direction,
+                        amount: amount,
+                        memo: memo || (direction === 'deposit' ? '루루봇 충전' : '루루봇 출금')
+                    }
+                });
+
+                if (error) {
+                    console.error('봇 연동 오류:', error);
+                    showToast('처리 중 오류가 발생했습니다: ' + (error.message || ''));
+                    return;
+                }
+
+                if (!data || !data.ok) {
+                    const msg = (data && data.error && data.error.message) || '루루봇 처리에 실패했습니다.';
+                    showToast(msg);
+                    return;
+                }
+
+                activeAcc.balance = data.new_balance;
+                // 주의: 여기서 saveAppData()를 일부러 호출하지 않습니다.
+                // 잔액 반영과 거래내역 기록은 Edge Function(bank-bot-transfer)이
+                // 서버에서 이미 처리했습니다. saveAppData()를 또 부르면 같은
+                // 거래가 클라이언트 쪽 upsert로 중복 생성될 수 있습니다.
+                // 아래는 이번 세션 화면에 바로 보여주기 위한 로컬 표시용입니다.
+                user.transactions.unshift({
+                    id: genId('tx'),
+                    accountId: activeAcc.id,
+                    title: direction === 'deposit' ? '루루봇에서 충전' : '루루봇으로 출금',
+                    memo: memo || '',
+                    date: '방금 전',
+                    createdAt: new Date().toISOString(),
+                    amount: direction === 'deposit' ? amount : -amount,
+                    type: direction === 'deposit' ? 'deposit' : 'withdraw'
+                });
+
+                renderApp();
+                showToast(direction === 'deposit' ? '루루봇에서 잔액을 불러왔습니다.' : '루루봇으로 출금했습니다.');
+                closeModal('modal-deposit');
+
+                if (amtInput) amtInput.value = '';
+                if (memoInput) memoInput.value = '';
+            } catch (err) {
+                console.error('봇 연동 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+                if (otherBtn) otherBtn.disabled = false;
+            }
         }
 
         function adminRpcErrorMessage(error) {
@@ -4867,5 +5013,3 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 modal.classList.add('hidden-modal');
             }
         }
-  }
-});
