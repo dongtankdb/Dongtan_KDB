@@ -2,9 +2,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_w3iECjE7i0Y2tPtPDAqaAA_pPHDDXVi';
         const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Discord 본인인증 서버 주소
-        // 로컬 테스트: http://localhost:3000
-        // 실제 배포: 반드시 HTTPS로 공개된 인증 서버 주소로 변경
         const VERIFICATION_API_BASE_URL = 'http://localhost:3000';
 
         function pickRpcRow(data) {
@@ -171,7 +168,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             ] = await Promise.all([
                 sbClient.from('users_public').select('*'),
                 sbClient.from('merchants_public').select('*'),
-                sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false })
+                // 앱이 열릴 때마다(로그인 전에도) 전체 가맹점의 매출 이력을
+                // 무제한으로 불러오면 거래가 쌓일수록 매번 다운로드량이 커집니다.
+                // 최근 500건으로 제한합니다 (각 가맹점 대시보드는 이 안에서
+                // 최근 항목만 화면에 보여주면 충분합니다).
+                sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false }).limit(500)
             ]);
 
             if (uErr || mErr || sErr) {
@@ -270,19 +271,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }));
         }
 
-        /* ==================== 홈 화면 광고 배너 카드 ====================
-           아래 배열에 이미지를 추가하면 홈 화면 맨 위에 카드 형태로
-           나타나서 AD_SLIDE_INTERVAL_MS 주기로 슬라이드(페이드) 전환됩니다.
-           배열이 비어 있으면 카드 자체가 표시되지 않습니다.
-           src에는 이미지 URL이나 base64 data URI를 넣으면 되고,
-           link는 선택사항으로, 지정하면 클릭 시 새 탭으로 이동합니다.
-
-           예시:
-           const AD_BANNERS = [
-               { src: 'https://example.com/ad1.jpg', link: 'https://example.com' },
-               { src: 'https://example.com/ad2.jpg' }
-           ];
-        ==================================================================== */
         const AD_BANNERS = [
             // { src: '이미지 URL 또는 data:image/... base64', link: '선택 사항' },
         ];
@@ -802,6 +790,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        function debounce(fn, delay) {
+            let timer = null;
+            return function (...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn.apply(this, args), delay ?? 300);
+            };
+        }
+
+        const debouncedRenderAdminUserList = debounce((value) => renderAdminUserList(value), 300);
+        const debouncedRenderAdminMerchantList = debounce((value) => renderAdminMerchantList(value), 300);
+        const debouncedRenderAdminTransactionSearch = debounce((value) => renderAdminTransactionSearch(value), 300);
+
         function escapeHtml(str) {
             const div = document.createElement('div');
             div.innerText = str;
@@ -1051,8 +1051,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             updatePinDots();
         }
 
-        // 물리 키보드 숫자키/Backspace로도 PIN을 입력할 수 있게 지원.
-        // 관리자 PIN 재확인 모달은 자체 텍스트 입력창이 있으므로 건드리지 않음.
         document.addEventListener('keydown', function(e) {
             const adminPinModal = document.getElementById('modal-admin-pin');
             if (adminPinModal && !adminPinModal.classList.contains('hidden')) return;
@@ -1061,7 +1059,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const isBackspace = e.key === 'Backspace';
             if (!isDigit && !isBackspace) return;
 
-            // 사용자 로그인 PIN 화면이 떠 있는 경우
             const authScreen = document.getElementById('auth-screen');
             const authPinSection = document.getElementById('auth-pin-section');
             if (authScreen && !authScreen.classList.contains('hidden-auth') &&
@@ -1072,7 +1069,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            // 가맹점 로그인 PIN 화면이 떠 있는 경우
             const posModal = document.getElementById('modal-pos');
             const mchLoginView = document.getElementById('mch-login-view');
             if (posModal && !posModal.classList.contains('hidden-modal') &&
@@ -1127,8 +1123,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const enteredPin = state.enteredPin;
             if (!/^\d{4}$/.test(enteredPin)) return;
-
-            // 0) 현재 잠겨 있는 계정인지 먼저 확인 (5회 실패 시 5분간 잠금)
+                
             try {
                 const { data: lockData, error: lockError } = await sbClient.rpc('get_login_lock_status', {
                     p_user_id: targetUserId
@@ -1147,7 +1142,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let row;
             try {
-                // 1) 먼저 정상 PIN인지 확인
                 const { data, error } = await sbClient.rpc('verify_user_login', {
                     p_user_id: targetUserId,
                     p_pin: enteredPin
@@ -1196,7 +1190,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            // 3) 정상 로그인 성공 시 실패 횟수를 초기화 (실패해도 로그인 자체는 막지 않음)
             try {
                 const { error: resetError } = await sbClient.rpc('reset_login_attempts', {
                     p_user_id: targetUserId
@@ -2721,7 +2714,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (mch.salesHistory.length === 0) {
                     historyList.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">최근 거래 내역이 없습니다.</div>';
                 } else {
-                    historyList.innerHTML = mch.salesHistory.map(item => {
+                    historyList.innerHTML = mch.salesHistory.slice(0, 50).map(item => {
                         const netAmount = item.amount - (item.feeAmount || 0);
                         const feeHtml = item.feeAmount ? '<div class="text-[10px] text-zinc-400 mt-0.5">수수료 ' + formatNumber(item.feeAmount) + '원 차감 · 실수령 ' + formatNumber(netAmount) + '원</div>' : '';
                         return '<div class="bg-zinc-50 p-3 rounded-xl border border-zinc-200 flex justify-between items-center text-xs">' +
@@ -3173,13 +3166,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             _adminPinResolve = null;
             if (resolve) resolve(null);
         }
-
-        /* ==================== 루루봇(디스코드 은행봇) 연동 ====================
-           실제 자금이 오가는 작업이라, 매번 본인 로그인 PIN을 다시 확인받은
-           뒤에만 Supabase Edge Function('bank-bot-transfer')을 호출합니다.
-           API 키/봇 서버 주소는 브라우저 코드에 절대 넣지 않고, Edge Function
-           안에서만(Supabase Secret) 사용합니다.
-        ==================================================================== */
         let _userPinResolve = null;
 
         function promptUserPin() {
@@ -3276,11 +3262,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 activeAcc.balance = data.new_balance;
-                // 주의: 여기서 saveAppData()를 일부러 호출하지 않습니다.
-                // 잔액 반영과 거래내역 기록은 Edge Function(bank-bot-transfer)이
-                // 서버에서 이미 처리했습니다. saveAppData()를 또 부르면 같은
-                // 거래가 클라이언트 쪽 upsert로 중복 생성될 수 있습니다.
-                // 아래는 이번 세션 화면에 바로 보여주기 위한 로컬 표시용입니다.
                 user.transactions.unshift({
                     id: genId('tx'),
                     accountId: activeAcc.id,
