@@ -1417,21 +1417,21 @@
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">회원 검색 / 잔액 수정</h3>
-                    <input type="text" id="admin-user-search" oninput="renderAdminUserList(this.value)" placeholder="닉네임 또는 디스코드로 검색"
+                    <input type="text" id="admin-user-search" oninput="debouncedRenderAdminUserList(this.value)" placeholder="닉네임 또는 디스코드로 검색"
                         class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs mb-3 focus:outline-none focus:border-zinc-900">
                     <div id="admin-user-list" class="space-y-2 max-h-96 overflow-y-auto no-scrollbar"></div>
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">가맹점 목록</h3>
-                    <input type="text" id="admin-merchant-search" oninput="renderAdminMerchantList(this.value)" placeholder="가맹점명으로 검색"
+                    <input type="text" id="admin-merchant-search" oninput="debouncedRenderAdminMerchantList(this.value)" placeholder="가맹점명으로 검색"
                         class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs mb-3 focus:outline-none focus:border-zinc-900">
                     <div id="admin-merchant-list" class="space-y-2 max-h-96 overflow-y-auto no-scrollbar"></div>
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">전체 거래내역 검색</h3>
-                    <input type="text" id="admin-tx-search" oninput="renderAdminTransactionSearch(this.value)" placeholder="거래 제목 또는 상대방 이름으로 검색"
+                    <input type="text" id="admin-tx-search" oninput="debouncedRenderAdminTransactionSearch(this.value)" placeholder="거래 제목 또는 상대방 이름으로 검색"
                         class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs mb-3 focus:outline-none focus:border-zinc-900">
                     <div id="admin-tx-list" class="space-y-2 max-h-96 overflow-y-auto no-scrollbar"></div>
                 </div>
