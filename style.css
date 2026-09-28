@@ -233,6 +233,29 @@
             touch-action: manipulation;
         }
 
+        #auth-user-avatar {
+            width: 96px;
+            height: 96px;
+            font-size: 2.25rem;
+        }
+
+        #auth-user-alias {
+            font-size: 1.6rem;
+        }
+
+        #auth-user-discord {
+            font-size: 0.85rem;
+        }
+
+        #auth-pin-section > .flex.gap-4 {
+            gap: 1.25rem;
+        }
+
+        #auth-pin-section .pin-dot {
+            width: 1.15rem;
+            height: 1.15rem;
+        }
+
         #auth-pin-section .keypad-btn {
             height: clamp(44px, 7.6dvh, 56px);
             touch-action: manipulation;
@@ -245,19 +268,19 @@
                 gap: 0.5rem;
             }
             #auth-user-avatar {
-                width: 56px;
-                height: 56px;
-                font-size: 1.25rem;
-                margin-bottom: 0.5rem;
-            }
-            #auth-user-alias {
-                font-size: 1.05rem;
-            }
-            #auth-user-discord {
+                width: 80px;
+                height: 80px;
+                font-size: 1.75rem;
                 margin-bottom: 0.75rem;
             }
-            #auth-pin-section > .flex.gap-4 {
+            #auth-user-alias {
+                font-size: 1.35rem;
+            }
+            #auth-user-discord {
                 margin-bottom: 1rem;
+            }
+            #auth-pin-section > .flex.gap-4 {
+                margin-bottom: 1.25rem;
             }
             #auth-pin-section .grid {
                 gap: 0.5rem;
