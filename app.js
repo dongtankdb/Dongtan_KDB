@@ -168,10 +168,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             ] = await Promise.all([
                 sbClient.from('users_public').select('*'),
                 sbClient.from('merchants_public').select('*'),
-                // 앱이 열릴 때마다(로그인 전에도) 전체 가맹점의 매출 이력을
-                // 무제한으로 불러오면 거래가 쌓일수록 매번 다운로드량이 커집니다.
-                // 최근 500건으로 제한합니다 (각 가맹점 대시보드는 이 안에서
-                // 최근 항목만 화면에 보여주면 충분합니다).
+
                 sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false }).limit(500)
             ]);
 
@@ -272,7 +269,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         const AD_BANNERS = [
-            // { src: '이미지 URL 또는 data:image/... base64', link: '선택 사항' },
+
         ];
         const AD_SLIDE_INTERVAL_MS = 4000;
 
@@ -1052,17 +1049,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         document.addEventListener('keydown', function(e) {
-            const adminPinModal = document.getElementById('modal-admin-pin');
-            if (adminPinModal && !adminPinModal.classList.contains('hidden')) return;
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
 
             const isDigit = /^[0-9]$/.test(e.key);
             const isBackspace = e.key === 'Backspace';
             if (!isDigit && !isBackspace) return;
 
+            const isVisible = (el) => !!el && el.getClientRects().length > 0;
+
             const authScreen = document.getElementById('auth-screen');
             const authPinSection = document.getElementById('auth-pin-section');
-            if (authScreen && !authScreen.classList.contains('hidden-auth') &&
-                authPinSection && !authPinSection.classList.contains('hidden')) {
+            if (authScreen && !authScreen.classList.contains('hidden-auth') && isVisible(authPinSection)) {
                 e.preventDefault();
                 if (isDigit) pressPin(e.key);
                 else backspacePin();
@@ -1071,9 +1069,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const posModal = document.getElementById('modal-pos');
             const mchLoginView = document.getElementById('mch-login-view');
-            if (posModal && !posModal.classList.contains('hidden-modal') &&
-                mchLoginView && !mchLoginView.classList.contains('hidden') &&
-                state.merchantAuthMode === 'login') {
+            if (posModal && !posModal.classList.contains('hidden-modal') && isVisible(mchLoginView) && state.merchantAuthMode === 'login') {
                 e.preventDefault();
                 if (isDigit) pressMerchantPin(e.key);
                 else backspaceMerchantPin();
@@ -1123,7 +1119,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const enteredPin = state.enteredPin;
             if (!/^\d{4}$/.test(enteredPin)) return;
-                
+
             try {
                 const { data: lockData, error: lockError } = await sbClient.rpc('get_login_lock_status', {
                     p_user_id: targetUserId
@@ -1142,6 +1138,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let row;
             try {
+
                 const { data, error } = await sbClient.rpc('verify_user_login', {
                     p_user_id: targetUserId,
                     p_pin: enteredPin
@@ -1159,7 +1156,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            // 2) PIN이 틀렸으면 서버에서 실패 횟수를 원자적으로 증가
             if (!row) {
                 state.enteredPin = '';
                 updatePinDots();
@@ -2714,6 +2710,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (mch.salesHistory.length === 0) {
                     historyList.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">최근 거래 내역이 없습니다.</div>';
                 } else {
+
                     historyList.innerHTML = mch.salesHistory.slice(0, 50).map(item => {
                         const netAmount = item.amount - (item.feeAmount || 0);
                         const feeHtml = item.feeAmount ? '<div class="text-[10px] text-zinc-400 mt-0.5">수수료 ' + formatNumber(item.feeAmount) + '원 차감 · 실수령 ' + formatNumber(netAmount) + '원</div>' : '';
@@ -3166,6 +3163,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             _adminPinResolve = null;
             if (resolve) resolve(null);
         }
+
         let _userPinResolve = null;
 
         function promptUserPin() {
@@ -3262,6 +3260,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 activeAcc.balance = data.new_balance;
+
                 user.transactions.unshift({
                     id: genId('tx'),
                     accountId: activeAcc.id,
