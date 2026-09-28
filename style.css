@@ -234,26 +234,30 @@
         }
 
         #auth-user-avatar {
-            width: 96px;
-            height: 96px;
-            font-size: 2.25rem;
+            width: 120px;
+            height: 120px;
+            font-size: 2.75rem;
+            margin-bottom: 1.25rem;
         }
 
         #auth-user-alias {
-            font-size: 1.6rem;
+            font-size: 2rem;
+            margin-bottom: 0.35rem;
         }
 
         #auth-user-discord {
-            font-size: 0.85rem;
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         #auth-pin-section > .flex.gap-4 {
-            gap: 1.25rem;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
         }
 
         #auth-pin-section .pin-dot {
-            width: 1.15rem;
-            height: 1.15rem;
+            width: 1.5rem;
+            height: 1.5rem;
         }
 
         #auth-pin-section .keypad-btn {
@@ -268,19 +272,24 @@
                 gap: 0.5rem;
             }
             #auth-user-avatar {
-                width: 80px;
-                height: 80px;
-                font-size: 1.75rem;
+                width: 96px;
+                height: 96px;
+                font-size: 2.25rem;
                 margin-bottom: 0.75rem;
             }
             #auth-user-alias {
-                font-size: 1.35rem;
+                font-size: 1.6rem;
             }
             #auth-user-discord {
+                font-size: 0.9rem;
                 margin-bottom: 1rem;
             }
             #auth-pin-section > .flex.gap-4 {
                 margin-bottom: 1.25rem;
+            }
+            #auth-pin-section .pin-dot {
+                width: 1.3rem;
+                height: 1.3rem;
             }
             #auth-pin-section .grid {
                 gap: 0.5rem;
