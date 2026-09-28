@@ -177,15 +177,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         async function loadAppData() {
             const knownIds = getKnownAccountIds();
 
-            const [countRes, knownRes, merchantsRes] = await Promise.all([
+            const [countRes, knownRes, merchantsRes, merchantTotalRes] = await Promise.all([
                 sbClient.from('users_public').select('id', { count: 'exact', head: true }),
                 knownIds.length
                     ? sbClient.from('users_public').select('id, alias, discord').in('id', knownIds)
                     : Promise.resolve({ data: [], error: null }),
-                sbClient.from('merchants_public').select('id, name, category, status')
+                sbClient.from('merchants_public')
+                    .select('id, name, category, status')
+                    .or('status.eq.approved,status.is.null'),
+                sbClient.from('merchants_public').select('id', { count: 'exact', head: true })
             ]);
 
-            const firstErr = countRes.error || knownRes.error || merchantsRes.error;
+            const firstErr = countRes.error || knownRes.error || merchantsRes.error || merchantTotalRes.error;
             if (firstErr) {
                 console.error('Supabase 로드 오류:', firstErr);
                 showToast('서버에서 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
@@ -215,9 +218,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     status: m.status || 'approved',
                     salesHistory: []
                 }));
-            } else {
+            } else if ((merchantTotalRes.count || 0) === 0) {
                 state.merchants = JSON.parse(JSON.stringify(defaultMerchants));
                 saveAppData(state.merchants.map(m => m.id));
+            } else {
+                state.merchants = [];
             }
         }
 
@@ -2545,20 +2550,22 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const nameElem = document.getElementById('mch-selected-name');
             const bizElem = document.getElementById('mch-selected-biz');
 
-            if (state.merchants.length === 0) {
+            const listedMerchants = state.merchants.filter(m => (m.status || 'approved') === 'approved');
+
+            if (listedMerchants.length === 0) {
                 switchMerchantAuthMode('signup');
                 return;
             }
 
             if (dropdownElem) {
-                dropdownElem.innerHTML = state.merchants.map(m =>
+                dropdownElem.innerHTML = listedMerchants.map(m =>
                     '<div onclick="selectLoginMerchant(\'' + m.id + '\')" class="flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-zinc-50 cursor-pointer">' +
                         '<i class="fa-solid ' + getCategoryIcon(m.category) + ' text-zinc-500 w-3.5"></i> ' + escapeHtml(m.name) + ' (' + escapeHtml(m.category) + ')' +
                     '</div>'
                 ).join('');
             }
 
-            const current = state.merchants.find(m => m.id === state.selectedMerchantLoginId) || state.merchants[0];
+            const current = listedMerchants.find(m => m.id === state.selectedMerchantLoginId) || listedMerchants[0];
             if (current) {
                 state.selectedMerchantLoginId = current.id;
                 if (hiddenInput) hiddenInput.value = current.id;
@@ -2747,15 +2754,28 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 status: 'pending'
             };
 
-            state.merchants.push(newMerchant);
-            saveAppData([newMerchant.id]);
+            try {
+                const { error: syncErr } = await sbClient.from('merchants').upsert([{
+                    id: newMerchant.id,
+                    name: newMerchant.name,
+                    category: newMerchant.category,
+                    biz_no: newMerchant.bizNo,
+                    account_no: newMerchant.accountNo,
+                    unsettled_balance: 0,
+                    total_sales: 0,
+                    status: 'pending'
+                }]);
+                if (syncErr) console.error('가맹점 신청 저장 오류:', syncErr);
+            } catch (err) {
+                console.error('가맹점 신청 저장 오류:', err);
+            }
 
             if (nameInput) nameInput.value = '';
             if (bizInput) bizInput.value = '';
             if (accInput) accInput.value = '';
             if (pinInput) pinInput.value = '';
 
-            showToast('가맹점 가입 신청이 완료되었습니다. 관리자 승인 후 이용 가능합니다.');
+            showToast('가맹점 가입 신청이 완료되었습니다. 관리자 승인 후 목록에 표시되며 이용할 수 있습니다.');
             switchMerchantAuthMode('login');
         }
 
