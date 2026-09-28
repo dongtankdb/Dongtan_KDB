@@ -45,31 +45,16 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
         }
 
-        @media (min-width: 421px) and (min-height: 700px) and (hover: hover) and (pointer: fine) {
+        @media (min-width: 421px) {
             #app-container {
                 height: 92vh;
+                height: 92dvh;
                 border-radius: 36px;
                 border: 8px solid #18181b;
             }
 
             .tab-content, #auth-screen {
                 border-radius: 28px;
-            }
-        }
-
-        @media (max-width: 600px) and (pointer: coarse) {
-            body {
-                align-items: stretch;
-            }
-
-            #app-container {
-                max-width: none;
-                max-height: none;
-                height: 100vh;
-                height: 100dvh;
-                border: 0;
-                border-radius: 0;
-                box-shadow: none;
             }
         }
 
@@ -250,7 +235,7 @@
             transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
         }
         .settings-scroll { flex: 1; overflow-y: auto; padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
-        @media (min-width: 421px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .settings-screen { border-radius: 28px; } }
+        @media (min-width: 421px) { .settings-screen { border-radius: 28px; } }
 
         .set-grid { display: grid; gap: 8px; }
         .set-opt {
