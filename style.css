@@ -201,8 +201,9 @@
             justify-content: space-between;
             gap: 1rem;
             padding: calc(2rem + env(safe-area-inset-top, 0px)) 1.5rem calc(2rem + env(safe-area-inset-bottom, 0px));
-            overflow-y: auto;
-            overscroll-behavior-y: contain;
+            overflow-y: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
             -webkit-overflow-scrolling: touch;
             color: white;
             transition: opacity 0.3s ease, transform 0.3s ease;
@@ -211,6 +212,57 @@
             opacity: 0;
             pointer-events: none;
             transform: scale(1.02);
+        }
+
+        #auth-screen:has(#auth-signup-view:not(.hidden)),
+        #auth-screen:has(#auth-account-lookup:not(.hidden)) {
+            overflow-y: auto;
+        }
+
+        html:has(#auth-screen:not(.hidden-auth)) {
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
+        body:has(#auth-screen:not(.hidden-auth)) {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+        }
+
+        #auth-pin-section .keypad-btn {
+            height: clamp(44px, 7.6dvh, 56px);
+            touch-action: manipulation;
+        }
+
+        @media (max-height: 740px) {
+            .auth-screen {
+                padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+                padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+                gap: 0.5rem;
+            }
+            #auth-user-avatar {
+                width: 56px;
+                height: 56px;
+                font-size: 1.25rem;
+                margin-bottom: 0.5rem;
+            }
+            #auth-user-alias {
+                font-size: 1.05rem;
+            }
+            #auth-user-discord {
+                margin-bottom: 0.75rem;
+            }
+            #auth-pin-section > .flex.gap-4 {
+                margin-bottom: 1rem;
+            }
+            #auth-pin-section .grid {
+                gap: 0.5rem;
+                margin-top: 0.25rem;
+            }
         }
 
         :root { --fs: 1; }
