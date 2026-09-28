@@ -432,3 +432,14 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
         #app-container .tab-content > .sticky {
             padding-top: calc(1rem + env(safe-area-inset-top, 0px));
         }
+
+html, body, #app-container, #app-container * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, #app-container::-webkit-scrollbar, #app-container *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
