@@ -4,6 +4,19 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         const VERIFICATION_API_BASE_URL = 'http://localhost:3000';
 
+        function maskAccountNo(no) {
+            const str = String(no || '');
+            const parts = str.split('-');
+            if (parts.length < 2) {
+                return str.length > 4 ? '*'.repeat(str.length - 4) + str.slice(-4) : str;
+            }
+            return parts.map((part, i) => {
+                if (i === 0) return part;
+                if (i === parts.length - 1) return '*'.repeat(Math.max(part.length - 3, 0)) + part.slice(-3);
+                return '*'.repeat(part.length);
+            }).join('-');
+        }
+
         function pickRpcRow(data) {
             const row = Array.isArray(data) ? data[0] : data;
             if (!row || typeof row !== 'object') return null;
@@ -50,6 +63,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         const state = {
             users: [],
+            hasUsers: false,
             currentUserId: localStorage.getItem(STORAGE_KEY_SESSION) || null,
             selectedLoginUserId: null,
             enteredPin: '',
@@ -161,62 +175,79 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         async function loadAppData() {
-            const [
-                { data: users, error: uErr },
-                { data: merchants, error: mErr },
-                { data: sales, error: sErr }
-            ] = await Promise.all([
-                sbClient.from('users_public').select('*'),
-                sbClient.from('merchants_public').select('*'),
+            const knownIds = getKnownAccountIds();
 
-                sbClient.from('merchant_sales').select('*').order('created_at', { ascending: false }).limit(500)
+            const [countRes, knownRes, merchantsRes] = await Promise.all([
+                sbClient.from('users_public').select('id', { count: 'exact', head: true }),
+                knownIds.length
+                    ? sbClient.from('users_public').select('id, alias, discord').in('id', knownIds)
+                    : Promise.resolve({ data: [], error: null }),
+                sbClient.from('merchants_public').select('id, name, category, status')
             ]);
 
-            if (uErr || mErr || sErr) {
-                const firstErr = uErr || mErr || sErr;
-                const errSummary = '메시지: ' + (firstErr.message || '없음') +
-                    ' / 코드: ' + (firstErr.code || '없음') +
-                    ' / 상세: ' + (firstErr.details || '없음') +
-                    ' / 힌트: ' + (firstErr.hint || '없음');
-                console.error('Supabase 로드 오류 - ' + errSummary);
-                showToast('서버 오류: ' + errSummary);
+            const firstErr = countRes.error || knownRes.error || merchantsRes.error;
+            if (firstErr) {
+                console.error('Supabase 로드 오류:', firstErr);
+                showToast('서버에서 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
                 return;
             }
 
-            state.users = (users || []).map(u => ({
+            state.hasUsers = (countRes.count || 0) > 0;
+
+            state.users = (knownRes.data || []).map(u => ({
                 id: u.id,
                 alias: u.alias,
                 discord: u.discord,
-                uid: u.uid,
-                points: u.points || 0,
-                currentAccountId: u.current_account_id,
                 accounts: [],
-                transactions: [],
-                attendanceHistory: u.attendance_history || {},
-                purchasedItems: u.purchased_items || [],
-                isAdmin: u.is_admin || false,
-                isFrozen: u.is_frozen || false,
-                discordNumericId: u.discord_numeric_id || ''
+                transactions: []
             }));
 
+            const merchants = merchantsRes.data;
             if (merchants && merchants.length) {
                 state.merchants = merchants.map(m => ({
                     id: m.id,
                     name: m.name,
                     category: m.category,
-                    bizNo: m.biz_no,
-                    accountNo: m.account_no,
-                    unsettledBalance: m.unsettled_balance || 0,
-                    totalSales: m.total_sales || 0,
+                    bizNo: '',
+                    accountNo: '',
+                    unsettledBalance: 0,
+                    totalSales: 0,
                     status: m.status || 'approved',
-                    salesHistory: (sales || [])
-                        .filter(s => s.merchant_id === m.id)
-                        .map(s => ({ id: s.id, title: s.title, amount: s.amount, feeAmount: s.fee_amount || 0, date: s.date_label || '', settled: s.settled }))
+                    salesHistory: []
                 }));
             } else {
-
                 state.merchants = JSON.parse(JSON.stringify(defaultMerchants));
                 saveAppData(state.merchants.map(m => m.id));
+            }
+        }
+
+        async function loadMerchantSales(mch) {
+            try {
+                const { data, error } = await sbClient
+                    .from('merchant_sales')
+                    .select('id, title, amount, fee_amount, settled, date_label, created_at')
+                    .eq('merchant_id', mch.id)
+                    .order('created_at', { ascending: false })
+                    .limit(200);
+
+                if (error) {
+                    console.error('매출 내역 조회 오류:', error);
+                    mch.salesHistory = mch.salesHistory || [];
+                    return;
+                }
+
+                mch.salesHistory = (data || []).map(x => ({
+                    id: x.id,
+                    title: x.title,
+                    amount: x.amount,
+                    feeAmount: x.fee_amount || 0,
+                    date: x.date_label || '',
+                    createdAt: x.created_at,
+                    settled: x.settled
+                }));
+            } catch (err) {
+                console.error('매출 내역 조회 오류:', err);
+                mch.salesHistory = mch.salesHistory || [];
             }
         }
 
@@ -226,7 +257,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const { data: accounts, error: aErr } = await sbClient
                 .from('accounts')
-                .select('*')
+                .select('id, name, account_no, balance, is_frozen, sort_order, created_at')
                 .eq('user_id', userId);
 
             if (aErr) {
@@ -244,7 +275,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (accountIds.length) {
                 const { data: txData, error: tErr } = await sbClient
                     .from('transactions')
-                    .select('*')
+                    .select('id, account_id, title, counterparty_name, memo, date_label, created_at, amount, type')
                     .in('account_id', accountIds)
                     .order('created_at', { ascending: false });
 
@@ -312,7 +343,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             state.currentUserId = null;
 
-            if (state.users.length > 0) {
+            if (state.hasUsers) {
                 state.authMode = 'login';
                 renderAuthLoginView();
             } else {
@@ -477,11 +508,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const user = getCurrentUser();
             if (!user) return;
 
+            const ownAccountIds = (user.accounts || []).map(a => a.id).filter(id => /^[A-Za-z0-9_-]+$/.test(id));
+            const txFilter = ownAccountIds.length ? 'account_id=in.(' + ownAccountIds.join(',') + ')' : 'account_id=eq.__none__';
+
             realtimeChannel = sbClient
                 .channel('realtime-' + user.id)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, handleAccountRealtimeChange)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, handleTransactionRealtimeChange)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'payment_requests' }, handlePaymentRequestInsert)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts', filter: 'user_id=eq.' + user.id }, handleAccountRealtimeChange)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: txFilter }, handleTransactionRealtimeChange)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'payment_requests', filter: 'user_id=eq.' + user.id }, handlePaymentRequestInsert)
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + user.id }, refreshNotifBadge)
                 .subscribe();
 
@@ -941,10 +975,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const lookupSection = document.getElementById('auth-account-lookup');
             const pinSection = document.getElementById('auth-pin-section');
 
-            if (state.authMode === 'signup' || state.users.length === 0) {
+            if (state.authMode === 'signup' || !state.hasUsers) {
                 loginView.classList.add('hidden');
                 signupView.classList.remove('hidden');
-                toggleBtn.innerText = state.users.length > 0 ? '기존 계정 로그인' : '신규 회원가입';
+                toggleBtn.innerText = state.hasUsers ? '기존 계정 로그인' : '신규 회원가입';
                 return;
             }
 
@@ -974,7 +1008,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             document.getElementById('auth-user-avatar').innerText = activeUser.alias.charAt(0);
             document.getElementById('auth-user-alias').innerText = activeUser.alias;
-            document.getElementById('auth-user-discord').innerText = activeUser.discord + ' | UID: ' + activeUser.uid;
+            document.getElementById('auth-user-discord').innerText = activeUser.discord;
 
             if (knownUsers.length > 1) {
                 selector.innerHTML = '<select onchange="selectLoginUser(this.value)" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-xs text-zinc-300 font-semibold focus:outline-none">' +
@@ -994,7 +1028,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (input) { input.value = ''; input.focus(); }
         }
 
-        function lookupAccount() {
+        async function lookupAccount() {
             const input = document.getElementById('auth-lookup-input');
             const query = input ? input.value.trim() : '';
 
@@ -1003,7 +1037,25 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const matches = state.users.filter(u => u.alias === query || u.discord === query);
+            let matches = [];
+            try {
+                const term = pgQuoteFilterValue(query);
+                const { data, error } = await sbClient
+                    .from('users_public')
+                    .select('id, alias, discord')
+                    .or('alias.eq.' + term + ',discord.eq.' + term)
+                    .limit(2);
+                if (error) {
+                    console.error('계정 조회 오류:', error);
+                    showToast('계정 조회 중 오류가 발생했습니다.');
+                    return;
+                }
+                matches = data || [];
+            } catch (err) {
+                console.error('계정 조회 오류:', err);
+                showToast('계정 조회 중 오류가 발생했습니다.');
+                return;
+            }
 
             if (matches.length === 0) {
                 showToast('일치하는 계정을 찾을 수 없습니다. 정확히 입력했는지 확인해 주세요.');
@@ -1014,7 +1066,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            state.selectedLoginUserId = matches[0].id;
+            const found = matches[0];
+            if (!state.users.some(u => u.id === found.id)) {
+                state.users.push({ id: found.id, alias: found.alias, discord: found.discord, accounts: [], transactions: [] });
+            }
+
+            state.selectedLoginUserId = found.id;
             state.enteredPin = '';
             renderAuthLoginView();
         }
@@ -1161,7 +1218,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
                 row = pickRpcRow(data);
-                if (!row) console.warn('verify_user_login 응답(불일치 처리됨):', data);
             } catch (err) {
                 console.error('로그인 확인 오류:', err);
                 showToast('로그인 확인 중 오류가 발생했습니다.');
@@ -1204,11 +1260,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 });
                 if (resetError) {
                     console.error('로그인 실패 횟수 초기화 오류:', resetError);
-                    showToast('로그인 보안 상태 초기화 실패: ' + (resetError.message || resetError.code || '알 수 없는 오류'));
+                    showToast('로그인 보안 상태 초기화에 실패했습니다.');
                 }
             } catch (err) {
                 console.error('로그인 실패 횟수 초기화 오류:', err);
-                showToast('로그인 보안 상태 초기화 실패: ' + (err && err.message ? err.message : '알 수 없는 오류'));
+                showToast('로그인 보안 상태 초기화에 실패했습니다.');
             }
 
             let localUser = state.users.find(u => u.id === row.id);
@@ -1330,6 +1386,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             };
 
             state.users.push(newUser);
+            state.hasUsers = true;
             state.currentUserId = newUser.id;
             addKnownAccountId(newUser.id);
             saveAppData();
@@ -1730,7 +1787,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 const { data: accByNo, error: accErr } = await sbClient
                     .from('accounts')
-                    .select('*')
+                    .select('id, user_id, account_no, is_frozen')
                     .eq('account_no', searchQuery)
                     .limit(1);
 
@@ -1747,7 +1804,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         .eq('id', acc.user_id)
                         .single();
                     if (!ownerErr && owner) {
-                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, balance: acc.balance, isFrozen: acc.is_frozen || false };
+                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, isFrozen: acc.is_frozen || false };
                     }
                 }
 
@@ -1770,7 +1827,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     if (owner.current_account_id) {
                         const { data: accById } = await sbClient
                             .from('accounts')
-                            .select('*')
+                            .select('id, user_id, account_no, is_frozen')
                             .eq('id', owner.current_account_id)
                             .single();
                         acc = accById || null;
@@ -1779,14 +1836,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     if (!acc) {
                         const { data: accByUser } = await sbClient
                             .from('accounts')
-                            .select('*')
+                            .select('id, user_id, account_no, is_frozen')
                             .eq('user_id', owner.id)
                             .limit(1);
                         acc = (accByUser && accByUser[0]) || null;
                     }
 
                     if (acc) {
-                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, balance: acc.balance, isFrozen: acc.is_frozen || false };
+                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, isFrozen: acc.is_frozen || false };
                     }
                 }
 
@@ -1912,7 +1969,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             state.pendingTransfer = { match, amount, memo };
 
             document.getElementById('transfer-confirm-recipient-name').innerText = match.alias;
-            document.getElementById('transfer-confirm-recipient-acc').innerText = match.accountNo || '계좌번호 확인됨';
+            document.getElementById('transfer-confirm-recipient-acc').innerText = match.accountNo ? maskAccountNo(match.accountNo) : '계좌번호 확인됨';
             document.getElementById('transfer-confirm-amount').innerText = formatNumber(amount) + '원';
 
             const memoWrap = document.getElementById('transfer-confirm-memo-wrap');
@@ -2098,6 +2155,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             user.accounts.push(newAccount);
             setLocalAccountOrder(user.id, user.accounts.map(a => a.id));
             user.currentAccountId = newAccId;
+            subscribeToRealtimeUpdates();
 
             saveAppData();
             closeModal('modal-create-account');
@@ -2464,7 +2522,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (labelElem) labelElem.innerText = current.name + ' (' + current.category + ')';
                 if (btnIcon) btnIcon.className = 'fa-solid ' + getCategoryIcon(current.category) + ' text-zinc-500 w-3.5';
                 if (nameElem) nameElem.innerText = current.name;
-                if (bizElem) bizElem.innerText = '사업자번호: ' + current.bizNo;
+                if (bizElem) bizElem.innerText = '';
             }
         }
 
@@ -2540,7 +2598,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
                 row = pickRpcRow(data);
-                if (!row) console.warn('verify_merchant_login 응답(불일치 처리됨):', data);
             } catch (err) {
                 console.error('가맹점 로그인 확인 오류:', err);
                 showToast('로그인 확인 중 오류가 발생했습니다.');
@@ -2579,6 +2636,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 updateMerchantPinDots();
                 return;
             }
+
+            await loadMerchantSales(localMch);
 
             state.currentMerchantId = localMch.id;
             saveSession();
@@ -2791,7 +2850,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const nowIso = new Date().toISOString();
                 const { data, error } = await sbClient
                     .from('payment_codes')
-                    .select('*')
+                    .select('id, user_id, account_id')
                     .eq('code', code)
                     .eq('used', false)
                     .gt('expires_at', nowIso)
@@ -2818,8 +2877,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             let customerUser, customerAcc;
             try {
                 const [{ data: uData, error: uErr }, { data: aData, error: aErr }] = await Promise.all([
-                    sbClient.from('users_public').select('*').eq('id', codeRow.user_id).single(),
-                    sbClient.from('accounts').select('*').eq('id', codeRow.account_id).single()
+                    sbClient.from('users_public').select('id, alias').eq('id', codeRow.user_id).single(),
+                    sbClient.from('accounts').select('id, account_no, is_frozen').eq('id', codeRow.account_id).single()
                 ]);
                 if (uErr || aErr || !uData || !aData) {
                     showToast('고객 계좌 정보를 확인할 수 없습니다.');
@@ -2838,15 +2897,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            if (customerAcc.balance < amt) {
-                showToast('고객의 계좌 잔액이 부족하여 결제에 실패하였습니다.');
-                return;
-            }
-
             state.pendingPosPayment = { codeRow, customerUser, customerAcc, amount: amt };
 
             document.getElementById('pos-confirm-customer-name').innerText = customerUser.alias;
-            document.getElementById('pos-confirm-customer-acc').innerText = customerAcc.account_no;
+            document.getElementById('pos-confirm-customer-acc').innerText = maskAccountNo(customerAcc.account_no);
             document.getElementById('pos-confirm-amount').innerText = formatNumber(amt) + '원';
 
             openModal('modal-pos-confirm');
