@@ -338,6 +338,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             startVersionCheckPolling();
             initAdPanels();
 
+            setInterval(() => {
+                if (getCurrentUser() && !isClaimingAttendance) renderAttendanceWidget();
+            }, 60000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && getCurrentUser() && !isClaimingAttendance) renderAttendanceWidget();
+            });
+
             showToast('서버에서 데이터를 불러오는 중입니다...');
             await loadAppData();
 
@@ -2362,12 +2369,37 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             return y + '-' + m + '-' + day;
         }
 
+        let isClaimingAttendance = false;
+
+        async function syncAttendanceFromServer(user) {
+            try {
+                const { data, error } = await sbClient
+                    .from('users_public')
+                    .select('points, attendance_history')
+                    .eq('id', user.id)
+                    .single();
+                if (error || !data) return false;
+                user.points = data.points || 0;
+                user.attendanceHistory = data.attendance_history || {};
+                return true;
+            } catch (err) {
+                console.error('출석 정보 동기화 오류:', err);
+                return false;
+            }
+        }
+
         async function claimDailyAttendance() {
             const user = getCurrentUser();
-            if (!user) return;
+            if (!user || isClaimingAttendance) return;
+            isClaimingAttendance = true;
 
             const btnElem = document.getElementById('btn-attendance');
             if (btnElem) btnElem.disabled = true;
+
+            const finish = () => {
+                isClaimingAttendance = false;
+                renderApp();
+            };
 
             let result;
             try {
@@ -2377,32 +2409,43 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (error) {
                     console.error('출석체크 처리 오류:', error);
                     showToast('출석체크 처리 중 오류가 발생했습니다.');
-                    if (btnElem) btnElem.disabled = false;
+                    finish();
                     return;
                 }
-                result = data && data[0];
+                result = Array.isArray(data) ? data[0] : data;
             } catch (err) {
                 console.error('출석체크 처리 오류:', err);
                 showToast('출석체크 처리 중 오류가 발생했습니다.');
-                if (btnElem) btnElem.disabled = false;
+                finish();
                 return;
             }
+
+            const todayKey = attendanceDateKey(new Date());
 
             if (!result || !result.ok) {
-                const reasonMsg = {
-                    already_claimed: '오늘은 이미 출석체크를 완료하셨습니다.'
-                }[result && result.reason] || '출석체크를 처리할 수 없습니다.';
-                showToast(reasonMsg);
-                if (btnElem) btnElem.disabled = false;
+                if (result && result.reason === 'already_claimed') {
+                    await syncAttendanceFromServer(user);
+                    if (!user.attendanceHistory) user.attendanceHistory = {};
+                    if (!user.attendanceHistory[todayKey]) user.attendanceHistory[todayKey] = true;
+                    showToast('오늘은 이미 출석체크를 완료하셨습니다.');
+                } else {
+                    showToast('출석체크를 처리할 수 없습니다.');
+                }
+                finish();
                 return;
             }
 
-            if (!user.attendanceHistory) user.attendanceHistory = {};
-            user.attendanceHistory[attendanceDateKey(new Date())] = result.earned_points;
-            user.points = (user.points || 0) + result.earned_points;
+            const earned = Number(result.earned_points) || 0;
+            const beforePoints = user.points || 0;
+            const synced = await syncAttendanceFromServer(user);
+            if (!synced) {
+                if (!user.attendanceHistory) user.attendanceHistory = {};
+                user.points = beforePoints + earned;
+            }
+            if (!user.attendanceHistory[todayKey]) user.attendanceHistory[todayKey] = earned || true;
 
-            renderApp();
-            showToast('출석체크 완료! ' + result.earned_points + 'P가 적립되었습니다!');
+            showToast('출석체크 완료! ' + earned + 'P가 적립되었습니다!');
+            finish();
         }
 
         function renderAttendanceWidget() {
