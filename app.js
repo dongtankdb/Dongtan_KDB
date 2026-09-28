@@ -1113,7 +1113,19 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        let isVerifyingPin = false;
+
         async function verifyPinAndLogin() {
+            if (isVerifyingPin) return;
+            isVerifyingPin = true;
+            try {
+                await verifyPinAndLoginInner();
+            } finally {
+                isVerifyingPin = false;
+            }
+        }
+
+        async function verifyPinAndLoginInner() {
             const targetUserId = state.selectedLoginUserId;
             if (!targetUserId) return;
 
@@ -1124,7 +1136,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const { data: lockData, error: lockError } = await sbClient.rpc('get_login_lock_status', {
                     p_user_id: targetUserId
                 });
-                const lockRow = pickRpcRow(lockData);
+                const lockRow = Array.isArray(lockData) ? lockData[0] : lockData;
                 if (!lockError && lockRow && lockRow.locked) {
                     state.enteredPin = '';
                     updatePinDots();
