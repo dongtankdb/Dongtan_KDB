@@ -17,16 +17,25 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            min-height: 100dvh;
             margin: 0;
             font-family: 'Noto Sans KR', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
             user-select: none;
+        }
+
+        input, textarea, select {
+            user-select: text;
+            -webkit-user-select: text;
         }
 
         #app-container {
             width: 100%;
             max-width: 420px;
             height: 100vh;
+            height: 100dvh;
             max-height: 880px;
             background-color: #ffffff;
             position: relative;
@@ -36,7 +45,7 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
         }
 
-        @media (min-width: 421px) {
+        @media (min-width: 421px) and (min-height: 700px) and (hover: hover) and (pointer: fine) {
             #app-container {
                 height: 92vh;
                 border-radius: 36px;
@@ -45,6 +54,28 @@
 
             .tab-content, #auth-screen {
                 border-radius: 28px;
+            }
+        }
+
+        @media (max-width: 600px) and (pointer: coarse) {
+            body {
+                align-items: stretch;
+            }
+
+            #app-container {
+                max-width: none;
+                max-height: none;
+                height: 100vh;
+                height: 100dvh;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+
+        @media (pointer: coarse) {
+            input, select, textarea {
+                font-size: 16px !important;
             }
         }
 
@@ -88,8 +119,10 @@
             width: 100%;
             height: 100%;
             overflow-y: auto;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
             background-color: #fafafa;
-            padding-bottom: 90px;
+            padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.25s ease-out;
@@ -181,7 +214,11 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 2rem 1.5rem;
+            gap: 1rem;
+            padding: calc(2rem + env(safe-area-inset-top, 0px)) 1.5rem calc(2rem + env(safe-area-inset-bottom, 0px));
+            overflow-y: auto;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
             color: white;
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
@@ -212,8 +249,8 @@
             visibility: visible;
             transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
         }
-        .settings-scroll { flex: 1; overflow-y: auto; padding-bottom: 40px; }
-        @media (min-width: 421px) { .settings-screen { border-radius: 28px; } }
+        .settings-scroll { flex: 1; overflow-y: auto; padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+        @media (min-width: 421px) and (min-height: 700px) and (hover: hover) and (pointer: fine) { .settings-screen { border-radius: 28px; } }
 
         .set-grid { display: grid; gap: 8px; }
         .set-opt {
@@ -342,3 +379,19 @@ html[data-fs="sm"] body,html[data-fs="lg"] body{font-size:calc(16px * var(--fs))
         html.dark .sel-acc-row.dragging { background: #212125; box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.7); }
         html.dark .home-acc-row { background: #161618; }
         html.dark .home-acc-row.dragging { background: #212125; box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.7); }
+
+        #app-container .bottom-nav {
+            padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0px));
+        }
+        #app-container .modal-card {
+            padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+            overscroll-behavior: contain;
+        }
+        #app-container #toast-container,
+        #app-container #app-update-banner,
+        #app-container #payment-request-banner {
+            padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+        }
+        #app-container .tab-content > .sticky {
+            padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+        }
