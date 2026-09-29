@@ -30,6 +30,23 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         const STORAGE_KEY_KNOWN_ACCOUNTS = 'kdb_pay_known_accounts_v1';
 
+        const STORAGE_KEY_REMEMBERED_LOGIN = 'kdb_pay_remembered_login_v1';
+
+        function getRememberedLoginUserId() {
+            try { return localStorage.getItem(STORAGE_KEY_REMEMBERED_LOGIN) || null; } catch (e) { return null; }
+        }
+
+        function rememberLoginUser(id) {
+            try {
+                localStorage.setItem(STORAGE_KEY_REMEMBERED_LOGIN, id);
+                addKnownAccountId(id);
+            } catch (e) {}
+        }
+
+        function forgetRememberedLoginUser() {
+            try { localStorage.removeItem(STORAGE_KEY_REMEMBERED_LOGIN); } catch (e) {}
+        }
+
         function getKnownAccountIds() {
             try {
                 return JSON.parse(localStorage.getItem(STORAGE_KEY_KNOWN_ACCOUNTS)) || [];
@@ -1016,6 +1033,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
             verifySection.classList.add('hidden');
 
+            if (!state.verifiedLoginUserId) {
+                const rememberedId = getRememberedLoginUserId();
+                if (rememberedId) {
+                    if (state.users.some(u => u.id === rememberedId)) {
+                        state.verifiedLoginUserId = rememberedId;
+                    } else {
+                        forgetRememberedLoginUser();
+                    }
+                }
+            }
+
             const activeUser = state.verifiedLoginUserId
                 ? state.users.find(u => u.id === state.verifiedLoginUserId)
                 : null;
@@ -1042,6 +1070,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function showAccountLookup() {
+            forgetRememberedLoginUser();
             state.pendingVerifyUser = null;
             state.verifiedLoginUserId = null;
             state.selectedLoginUserId = null;
@@ -1213,6 +1242,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 state.authMode = 'login';
                 state.verifiedLoginUserId = targetUser.id;
                 state.selectedLoginUserId = targetUser.id;
+                rememberLoginUser(targetUser.id);
                 state.enteredPin = '';
                 renderAuthLoginView();
                 showToast('본인 확인이 완료됐습니다. PIN을 입력해 주세요.');
