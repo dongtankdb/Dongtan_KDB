@@ -68,6 +68,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             selectedLoginUserId: null,
             pendingVerifyUser: null,
             verifiedLoginUserId: null,
+            signupDiscordNumericId: null,
             enteredPin: '',
             authMode: 'signup',
             currentPayCode: '849201',
@@ -366,6 +367,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             await handleDiscordVerificationReturn();
+            await handleDiscordSignupReturn();
 
             if (state.currentMerchantId === null) {
                 const savedMchId = localStorage.getItem(STORAGE_KEY_MERCHANT_SESSION);
@@ -1220,6 +1222,133 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        const DISCORD_SIGNUP_FLAG_KEY = 'kdb_pay_discord_signup_pending';
+        const DISCORD_SIGNUP_DRAFT_KEY = 'kdb_pay_discord_signup_draft';
+
+        function extractDiscordIdentity(authUser) {
+            const identity = (authUser.identities || []).find(i => i.provider === 'discord') || null;
+            const data = (identity && identity.identity_data) || {};
+            const meta = authUser.user_metadata || {};
+            const numericId =
+                (identity && identity.id) ||
+                data.provider_id || data.sub ||
+                meta.provider_id || meta.sub ||
+                null;
+            const rawName = data.name || data.preferred_username || data.user_name || data.full_name ||
+                meta.name || meta.preferred_username || meta.user_name || meta.full_name || '';
+            const username = String(rawName).replace(/#\d{1,4}$/, '').trim();
+            return { numericId: numericId ? String(numericId) : null, username: username };
+        }
+
+        function updateSignupDiscordStatus() {
+            const status = document.getElementById('signup-discord-status');
+            const btn = document.getElementById('signup-discord-verify-btn');
+            const input = document.getElementById('signup-discord');
+            if (!status || !btn || !input) return;
+            if (state.signupDiscordNumericId) {
+                status.className = 'text-[10px] mt-1.5 text-emerald-400';
+                status.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i>디스코드 연동 완료 · 숫자 ID가 자동으로 등록됩니다';
+                btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> 다시 연동';
+                input.readOnly = true;
+            } else {
+                status.className = 'text-[10px] mt-1.5 text-zinc-500';
+                status.innerText = '디스코드로 로그인하면 ID와 숫자 ID가 자동으로 입력·등록됩니다.';
+                btn.innerHTML = '<i class="fa-brands fa-discord"></i> 연동';
+                input.readOnly = false;
+            }
+        }
+
+        async function startDiscordSignupLink() {
+            const aliasInput = document.getElementById('signup-alias');
+            const uidInput = document.getElementById('signup-uid');
+            const btn = document.getElementById('signup-discord-verify-btn');
+            try {
+                if (btn) btn.disabled = true;
+                localStorage.setItem(DISCORD_SIGNUP_FLAG_KEY, '1');
+                localStorage.setItem(DISCORD_SIGNUP_DRAFT_KEY, JSON.stringify({
+                    alias: aliasInput ? aliasInput.value : '',
+                    uid: uidInput ? uidInput.value : ''
+                }));
+                const returnUrl = window.location.href.split('#')[0].split('?')[0];
+                const { error } = await sbClient.auth.signInWithOAuth({
+                    provider: 'discord',
+                    options: { redirectTo: returnUrl }
+                });
+                if (error) {
+                    console.error('디스코드 연동 시작 오류:', error);
+                    showToast('디스코드 연동을 시작하지 못했습니다: ' + (error.message || ''));
+                    localStorage.removeItem(DISCORD_SIGNUP_FLAG_KEY);
+                    localStorage.removeItem(DISCORD_SIGNUP_DRAFT_KEY);
+                    if (btn) btn.disabled = false;
+                }
+            } catch (err) {
+                console.error('디스코드 연동 시작 오류:', err);
+                showToast('디스코드 연동을 시작하지 못했습니다.');
+                localStorage.removeItem(DISCORD_SIGNUP_FLAG_KEY);
+                localStorage.removeItem(DISCORD_SIGNUP_DRAFT_KEY);
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function handleDiscordSignupReturn() {
+            if (!localStorage.getItem(DISCORD_SIGNUP_FLAG_KEY)) return;
+            let draft = {};
+            try { draft = JSON.parse(localStorage.getItem(DISCORD_SIGNUP_DRAFT_KEY)) || {}; } catch (e) { draft = {}; }
+            localStorage.removeItem(DISCORD_SIGNUP_FLAG_KEY);
+            localStorage.removeItem(DISCORD_SIGNUP_DRAFT_KEY);
+
+            state.authMode = 'signup';
+            state.signupDiscordNumericId = null;
+            renderAuthLoginView();
+
+            const aliasInput = document.getElementById('signup-alias');
+            const uidInput = document.getElementById('signup-uid');
+            const discordInput = document.getElementById('signup-discord');
+            if (aliasInput && draft.alias) aliasInput.value = draft.alias;
+            if (uidInput && draft.uid) uidInput.value = draft.uid;
+            updateSignupDiscordStatus();
+
+            try {
+                const { data: sessionData, error: sessionError } = await sbClient.auth.getSession();
+                const session = sessionData && sessionData.session;
+                if (sessionError || !session || !session.user) {
+                    showToast('디스코드 연동에 실패했습니다. 다시 시도해 주세요.');
+                    return;
+                }
+
+                const found = extractDiscordIdentity(session.user);
+                await sbClient.auth.signOut();
+
+                if (!found.numericId) {
+                    showToast('디스코드 계정 정보를 확인하지 못했습니다.');
+                    return;
+                }
+
+                const { data: dup, error: dupErr } = await sbClient
+                    .from('users_public')
+                    .select('id')
+                    .eq('discord_numeric_id', found.numericId)
+                    .limit(1);
+                if (dupErr) {
+                    console.error('디스코드 숫자 ID 중복 확인 오류:', dupErr);
+                    showToast('디스코드 연동 확인 중 오류가 발생했습니다.');
+                    return;
+                }
+                if (dup && dup.length > 0) {
+                    showToast('이미 가입된 디스코드 계정입니다.');
+                    return;
+                }
+
+                state.signupDiscordNumericId = found.numericId;
+                if (discordInput && found.username) discordInput.value = found.username;
+                updateSignupDiscordStatus();
+                showToast('디스코드 연동이 완료됐습니다. 나머지 정보를 입력해 주세요.');
+            } catch (err) {
+                console.error('디스코드 연동 처리 오류:', err);
+                showToast('디스코드 연동 처리 중 오류가 발생했습니다.');
+            }
+        }
+
         function pressPin(num) {
             if (state.enteredPin.length < 4) {
                 state.enteredPin += num;
@@ -1456,6 +1585,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
+            if (!state.signupDiscordNumericId) {
+                showToast('디스코드 ID 옆의 [연동] 버튼으로 디스코드 계정을 먼저 연동해 주세요.');
+                return;
+            }
+
             const signupBtn = document.getElementById('signup-submit-btn');
             if (signupBtn) signupBtn.disabled = true;
 
@@ -1522,12 +1656,15 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     createdAt: new Date().toISOString(), amount: 100000, type: 'deposit' }
                 ],
                 attendanceHistory: {},
-                purchasedItems: []
+                purchasedItems: [],
+                discordNumericId: state.signupDiscordNumericId
             };
 
             state.users.push(newUser);
             state.hasUsers = true;
             state.currentUserId = newUser.id;
+            state.signupDiscordNumericId = null;
+            updateSignupDiscordStatus();
             addKnownAccountId(newUser.id);
             saveAppData();
             subscribeToRealtimeUpdates();
