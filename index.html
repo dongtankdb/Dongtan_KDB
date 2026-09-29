@@ -120,16 +120,16 @@
                 </div>
 
                 <div id="auth-verify-pending" class="hidden w-full flex flex-col items-center">
-                    <div id="auth-verify-avatar" class="w-16 h-16 bg-zinc-900 text-white rounded-full flex items-center justify-center text-xl font-bold mb-4 border border-zinc-700">
+                    <div id="auth-verify-avatar" class="w-28 h-28 bg-gradient-to-tr from-zinc-800 to-zinc-700 text-white rounded-full flex items-center justify-center text-5xl font-bold mb-5 shadow-xl border border-zinc-600/50">
                         -
                     </div>
-                    <h2 id="auth-verify-alias" class="text-lg font-bold text-white mb-1">-</h2>
-                    <p id="auth-verify-discord" class="text-xs text-zinc-500 mb-6 font-mono">-</p>
-                    <p class="text-xs text-zinc-400 mb-6 text-center">이 계정이 본인 것이 맞는지<br>Discord로 확인해 주세요.</p>
-                    <button onclick="startDiscordVerification()" class="w-full bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold py-3 rounded-xl text-sm mb-3 flex items-center justify-center gap-2">
+                    <h2 id="auth-verify-alias" class="text-3xl font-extrabold text-white mb-2">-</h2>
+                    <p id="auth-verify-discord" class="text-base text-zinc-400 mb-8 font-mono">-</p>
+                    <p class="text-sm text-zinc-300 mb-8 text-center leading-relaxed">이 계정이 본인 것이 맞는지<br>Discord로 확인해 주세요.</p>
+                    <button onclick="startDiscordVerification()" class="w-full bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold py-4 rounded-2xl text-base mb-3 flex items-center justify-center gap-2">
                         <i class="fa-brands fa-discord"></i> Discord로 본인 확인하기
                     </button>
-                    <button onclick="cancelAccountVerify()" class="text-xs text-zinc-500 hover:text-zinc-300 mt-2">다시 찾기</button>
+                    <button onclick="cancelAccountVerify()" class="text-sm text-zinc-500 hover:text-zinc-300 mt-2">다시 찾기</button>
                 </div>
 
                 <div id="auth-pin-section" class="hidden w-full flex flex-col items-center">
