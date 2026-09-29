@@ -66,6 +66,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             hasUsers: false,
             currentUserId: localStorage.getItem(STORAGE_KEY_SESSION) || null,
             selectedLoginUserId: null,
+            pendingVerifyUser: null,
+            verifiedLoginUserId: null,
             enteredPin: '',
             authMode: 'signup',
             currentPayCode: '849201',
@@ -987,6 +989,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const toggleBtn = document.getElementById('auth-toggle-btn');
             const selector = document.getElementById('auth-user-selector');
             const lookupSection = document.getElementById('auth-account-lookup');
+            const verifySection = document.getElementById('auth-verify-pending');
             const pinSection = document.getElementById('auth-pin-section');
 
             if (state.authMode === 'signup' || !state.hasUsers) {
@@ -1000,46 +1003,57 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             signupView.classList.add('hidden');
             toggleBtn.innerText = '신규 회원가입';
 
-            const knownIds = getKnownAccountIds();
-            const knownUsers = state.users.filter(u => knownIds.includes(u.id));
-
-            if (!state.selectedLoginUserId || !state.users.some(u => u.id === state.selectedLoginUserId)) {
-                state.selectedLoginUserId = knownUsers.length > 0 ? knownUsers[0].id : null;
+            if (state.pendingVerifyUser) {
+                lookupSection.classList.add('hidden');
+                pinSection.classList.add('hidden');
+                verifySection.classList.remove('hidden');
+                document.getElementById('auth-verify-avatar').innerText = state.pendingVerifyUser.alias.charAt(0);
+                document.getElementById('auth-verify-alias').innerText = state.pendingVerifyUser.alias;
+                document.getElementById('auth-verify-discord').innerText = state.pendingVerifyUser.discord;
+                return;
             }
+            verifySection.classList.add('hidden');
 
-            if (!state.selectedLoginUserId) {
+            const activeUser = state.verifiedLoginUserId
+                ? state.users.find(u => u.id === state.verifiedLoginUserId)
+                : null;
 
+            if (!activeUser) {
+                state.verifiedLoginUserId = null;
+                state.selectedLoginUserId = null;
+                selector.innerHTML = '';
                 lookupSection.classList.remove('hidden');
                 pinSection.classList.add('hidden');
                 return;
             }
 
+            state.selectedLoginUserId = activeUser.id;
             lookupSection.classList.add('hidden');
             pinSection.classList.remove('hidden');
-
-            const activeUser = state.users.find(u => u.id === state.selectedLoginUserId);
-            if (!activeUser) return;
 
             document.getElementById('auth-user-avatar').innerText = activeUser.alias.charAt(0);
             document.getElementById('auth-user-alias').innerText = activeUser.alias;
             document.getElementById('auth-user-discord').innerText = activeUser.discord;
-
-            if (knownUsers.length > 1) {
-                selector.innerHTML = '<select onchange="selectLoginUser(this.value)" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-xs text-zinc-300 font-semibold focus:outline-none">' +
-                    knownUsers.map(u => '<option value="' + u.id + '" ' + (u.id === activeUser.id ? 'selected' : '') + '>' + escapeHtml(u.alias) + ' (' + escapeHtml(u.discord) + ')</option>').join('') +
-                '</select>';
-            } else {
-                selector.innerHTML = '';
-            }
+            selector.innerHTML = '';
 
             updatePinDots();
         }
 
         function showAccountLookup() {
-            document.getElementById('auth-account-lookup').classList.remove('hidden');
-            document.getElementById('auth-pin-section').classList.add('hidden');
+            state.pendingVerifyUser = null;
+            state.verifiedLoginUserId = null;
+            state.selectedLoginUserId = null;
+            state.enteredPin = '';
+            renderAuthLoginView();
             const input = document.getElementById('auth-lookup-input');
             if (input) { input.value = ''; input.focus(); }
+        }
+
+        function cancelAccountVerify() {
+            state.pendingVerifyUser = null;
+            state.verifiedLoginUserId = null;
+            state.selectedLoginUserId = null;
+            renderAuthLoginView();
         }
 
         async function lookupAccount() {
@@ -1085,16 +1099,21 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 state.users.push({ id: found.id, alias: found.alias, discord: found.discord, accounts: [], transactions: [] });
             }
 
-            state.selectedLoginUserId = found.id;
-            state.enteredPin = '';
+            state.pendingVerifyUser = { id: found.id, alias: found.alias, discord: found.discord };
             renderAuthLoginView();
         }
 
         const DISCORD_VERIFY_FLAG_KEY = 'kdb_pay_discord_verify_pending';
+        const DISCORD_VERIFY_TARGET_USER_KEY = 'kdb_pay_discord_verify_target_user';
 
         async function startDiscordVerification() {
+            if (!state.pendingVerifyUser) {
+                showToast('먼저 계정을 찾아 주세요.');
+                return;
+            }
             try {
                 localStorage.setItem(DISCORD_VERIFY_FLAG_KEY, '1');
+                localStorage.setItem(DISCORD_VERIFY_TARGET_USER_KEY, state.pendingVerifyUser.id);
                 const returnUrl = window.location.href.split('#')[0].split('?')[0];
                 const { error } = await sbClient.auth.signInWithOAuth({
                     provider: 'discord',
@@ -1104,18 +1123,27 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     console.error('디스코드 인증 시작 오류:', error);
                     showToast('디스코드 인증을 시작하지 못했습니다: ' + (error.message || ''));
                     localStorage.removeItem(DISCORD_VERIFY_FLAG_KEY);
+                    localStorage.removeItem(DISCORD_VERIFY_TARGET_USER_KEY);
                 }
             } catch (err) {
                 console.error('디스코드 인증 시작 오류:', err);
                 showToast('디스코드 인증을 시작하지 못했습니다.');
                 localStorage.removeItem(DISCORD_VERIFY_FLAG_KEY);
+                localStorage.removeItem(DISCORD_VERIFY_TARGET_USER_KEY);
             }
         }
 
         async function handleDiscordVerificationReturn() {
             const pending = localStorage.getItem(DISCORD_VERIFY_FLAG_KEY);
+            const targetUserId = localStorage.getItem(DISCORD_VERIFY_TARGET_USER_KEY);
             if (!pending) return;
             localStorage.removeItem(DISCORD_VERIFY_FLAG_KEY);
+            localStorage.removeItem(DISCORD_VERIFY_TARGET_USER_KEY);
+
+            if (!targetUserId) {
+                showToast('본인 확인 대상 계정 정보가 없습니다. 계정을 다시 찾아 주세요.');
+                return;
+            }
 
             try {
                 const { data: sessionData, error: sessionError } = await sbClient.auth.getSession();
@@ -1140,51 +1168,56 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                const { data: matchedUsers, error: matchErr } = await sbClient
+                const { data: targetUser, error: targetErr } = await sbClient
                     .from('users_public')
-                    .select('id, alias, discord')
-                    .eq('discord_numeric_id', String(discordNumericId));
+                    .select('id, alias, discord, discord_numeric_id')
+                    .eq('id', targetUserId)
+                    .single();
 
-                if (matchErr) {
-                    console.error('디스코드 본인확인 조회 오류:', matchErr);
+                if (targetErr || !targetUser) {
+                    console.error('본인확인 대상 계정 조회 오류:', targetErr);
                     showToast('본인 확인 중 오류가 발생했습니다.');
                     return;
                 }
 
-                if (!matchedUsers || matchedUsers.length === 0) {
-                    showToast('이 디스코드 계정으로 등록된 KDB Pay 계정을 찾을 수 없습니다. 프로필에서 디스코드 숫자 ID를 먼저 등록해 주세요.');
-                    return;
-                }
-                if (matchedUsers.length > 1) {
-                    showToast('동일한 디스코드 ID로 등록된 계정이 여러 개 있습니다. 관리자에게 문의해 주세요.');
+                if (!targetUser.discord_numeric_id) {
+                    showToast('이 계정에는 디스코드 숫자 ID가 등록되어 있지 않아 본인 확인을 할 수 없습니다. 관리자에게 문의해 주세요.');
+                    state.pendingVerifyUser = null;
+                    state.verifiedLoginUserId = null;
+                    state.selectedLoginUserId = null;
+                    renderAuthLoginView();
                     return;
                 }
 
-                const matched = matchedUsers[0];
-                let localUser = state.users.find(u => u.id === matched.id);
+                if (String(targetUser.discord_numeric_id) !== String(discordNumericId)) {
+                    showToast('본인 계정이 아닙니다. 등록된 디스코드 계정으로 다시 시도해 주세요.');
+                    state.pendingVerifyUser = null;
+                    state.verifiedLoginUserId = null;
+                    state.selectedLoginUserId = null;
+                    renderAuthLoginView();
+                    return;
+                }
+
+                let localUser = state.users.find(u => u.id === targetUser.id);
                 if (!localUser) {
-                    localUser = { id: matched.id, alias: matched.alias, discord: matched.discord, accounts: [], transactions: [] };
+                    localUser = { id: targetUser.id, alias: targetUser.alias, discord: targetUser.discord, accounts: [], transactions: [] };
                     state.users.push(localUser);
                 } else {
-                    localUser.alias = matched.alias;
-                    localUser.discord = matched.discord;
+                    localUser.alias = targetUser.alias;
+                    localUser.discord = targetUser.discord;
                 }
 
+                state.pendingVerifyUser = null;
                 state.authMode = 'login';
-                state.selectedLoginUserId = matched.id;
+                state.verifiedLoginUserId = targetUser.id;
+                state.selectedLoginUserId = targetUser.id;
                 state.enteredPin = '';
                 renderAuthLoginView();
-                showToast('디스코드 본인 확인이 완료됐습니다. PIN을 입력해 주세요.');
+                showToast('본인 확인이 완료됐습니다. PIN을 입력해 주세요.');
             } catch (err) {
                 console.error('디스코드 인증 처리 오류:', err);
                 showToast('디스코드 인증 처리 중 오류가 발생했습니다.');
             }
-        }
-
-        function selectLoginUser(userId) {
-            state.selectedLoginUserId = userId;
-            state.enteredPin = '';
-            renderAuthLoginView();
         }
 
         function pressPin(num) {
@@ -1288,8 +1321,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         async function verifyPinAndLoginInner() {
-            const targetUserId = state.selectedLoginUserId;
-            if (!targetUserId) return;
+            const targetUserId = state.verifiedLoginUserId;
+            if (!targetUserId || targetUserId !== state.selectedLoginUserId) return;
 
             const enteredPin = state.enteredPin;
             if (!/^\d{4}$/.test(enteredPin)) return;
@@ -1389,6 +1422,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             localUser.discordNumericId = row.discord_numeric_id || '';
 
             state.currentUserId = row.id;
+            state.verifiedLoginUserId = null;
+            state.selectedLoginUserId = null;
             addKnownAccountId(row.id);
             showToast('계좌 정보를 불러오는 중입니다...');
             await loadUserFinancialData(row.id);
