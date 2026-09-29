@@ -116,15 +116,20 @@
                     <p class="text-xs text-zinc-400 mb-6 text-center">가입 시 등록한 가명 또는 디스코드 ID을<br>정확히 입력해 주세요.</p>
                     <input type="text" id="auth-lookup-input" placeholder="가명 또는 디스코드 ID" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm text-white mb-3 focus:outline-none focus:border-white">
                     <button onclick="lookupAccount()" class="w-full bg-white text-zinc-900 font-bold py-3 rounded-xl text-sm mb-2">계정 찾기</button>
-                    <div class="flex items-center gap-2 w-full my-3">
-                        <div class="h-px bg-zinc-800 flex-1"></div>
-                        <span class="text-[10px] text-zinc-500">또는</span>
-                        <div class="h-px bg-zinc-800 flex-1"></div>
+                    <button onclick="toggleAuthMode()" class="text-xs text-zinc-500 hover:text-zinc-300 mt-2">신규 회원가입 하러 가기</button>
+                </div>
+
+                <div id="auth-verify-pending" class="hidden w-full flex flex-col items-center">
+                    <div id="auth-verify-avatar" class="w-16 h-16 bg-zinc-900 text-white rounded-full flex items-center justify-center text-xl font-bold mb-4 border border-zinc-700">
+                        -
                     </div>
-                    <button onclick="startDiscordVerification()" class="w-full bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold py-3 rounded-xl text-sm mb-2 flex items-center justify-center gap-2">
+                    <h2 id="auth-verify-alias" class="text-lg font-bold text-white mb-1">-</h2>
+                    <p id="auth-verify-discord" class="text-xs text-zinc-500 mb-6 font-mono">-</p>
+                    <p class="text-xs text-zinc-400 mb-6 text-center">이 계정이 본인 것이 맞는지<br>Discord로 확인해 주세요.</p>
+                    <button onclick="startDiscordVerification()" class="w-full bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold py-3 rounded-xl text-sm mb-3 flex items-center justify-center gap-2">
                         <i class="fa-brands fa-discord"></i> Discord로 본인 확인하기
                     </button>
-                    <button onclick="toggleAuthMode()" class="text-xs text-zinc-500 hover:text-zinc-300 mt-2">신규 회원가입 하러 가기</button>
+                    <button onclick="cancelAccountVerify()" class="text-xs text-zinc-500 hover:text-zinc-300 mt-2">다시 찾기</button>
                 </div>
 
                 <div id="auth-pin-section" class="hidden w-full flex flex-col items-center">
