@@ -179,7 +179,13 @@
 
                 <div>
                     <label class="block text-[11px] font-medium text-zinc-400 mb-1">디스코드 ID</label>
-                    <input type="text" id="signup-discord" placeholder="예: hongildong123" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-white">
+                    <div class="flex gap-2">
+                        <input type="text" id="signup-discord" placeholder="연동하면 자동 입력됩니다" class="flex-1 min-w-0 bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-white read-only:text-zinc-400">
+                        <button type="button" id="signup-discord-verify-btn" onclick="startDiscordSignupLink()" class="shrink-0 bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold px-3.5 rounded-xl text-xs flex items-center gap-1.5 disabled:opacity-50">
+                            <i class="fa-brands fa-discord"></i> 연동
+                        </button>
+                    </div>
+                    <p id="signup-discord-status" class="text-[10px] mt-1.5 text-zinc-500">디스코드로 로그인하면 ID와 숫자 ID가 자동으로 입력·등록됩니다.</p>
                 </div>
 
                 <div>
