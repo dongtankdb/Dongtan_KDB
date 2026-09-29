@@ -363,6 +363,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 renderAuthLoginView();
             }
 
+            await handleDiscordVerificationReturn();
+
             if (state.currentMerchantId === null) {
                 const savedMchId = localStorage.getItem(STORAGE_KEY_MERCHANT_SESSION);
                 if (savedMchId && state.merchants.some(m => m.id === savedMchId)) {
@@ -1086,6 +1088,97 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             state.selectedLoginUserId = found.id;
             state.enteredPin = '';
             renderAuthLoginView();
+        }
+
+        const DISCORD_VERIFY_FLAG_KEY = 'kdb_pay_discord_verify_pending';
+
+        async function startDiscordVerification() {
+            try {
+                localStorage.setItem(DISCORD_VERIFY_FLAG_KEY, '1');
+                const returnUrl = window.location.href.split('#')[0].split('?')[0];
+                const { error } = await sbClient.auth.signInWithOAuth({
+                    provider: 'discord',
+                    options: { redirectTo: returnUrl }
+                });
+                if (error) {
+                    console.error('디스코드 인증 시작 오류:', error);
+                    showToast('디스코드 인증을 시작하지 못했습니다: ' + (error.message || ''));
+                    localStorage.removeItem(DISCORD_VERIFY_FLAG_KEY);
+                }
+            } catch (err) {
+                console.error('디스코드 인증 시작 오류:', err);
+                showToast('디스코드 인증을 시작하지 못했습니다.');
+                localStorage.removeItem(DISCORD_VERIFY_FLAG_KEY);
+            }
+        }
+
+        async function handleDiscordVerificationReturn() {
+            const pending = localStorage.getItem(DISCORD_VERIFY_FLAG_KEY);
+            if (!pending) return;
+            localStorage.removeItem(DISCORD_VERIFY_FLAG_KEY);
+
+            try {
+                const { data: sessionData, error: sessionError } = await sbClient.auth.getSession();
+                const session = sessionData && sessionData.session;
+
+                if (sessionError || !session || !session.user) {
+                    showToast('디스코드 인증에 실패했습니다. 다시 시도해 주세요.');
+                    return;
+                }
+
+                const authUser = session.user;
+                const discordIdentity = (authUser.identities || []).find(i => i.provider === 'discord');
+                const discordNumericId =
+                    (discordIdentity && (discordIdentity.id || (discordIdentity.identity_data && (discordIdentity.identity_data.provider_id || discordIdentity.identity_data.sub)))) ||
+                    (authUser.user_metadata && (authUser.user_metadata.provider_id || authUser.user_metadata.sub)) ||
+                    null;
+
+                await sbClient.auth.signOut();
+
+                if (!discordNumericId) {
+                    showToast('디스코드 계정 정보를 확인하지 못했습니다.');
+                    return;
+                }
+
+                const { data: matchedUsers, error: matchErr } = await sbClient
+                    .from('users_public')
+                    .select('id, alias, discord')
+                    .eq('discord_numeric_id', String(discordNumericId));
+
+                if (matchErr) {
+                    console.error('디스코드 본인확인 조회 오류:', matchErr);
+                    showToast('본인 확인 중 오류가 발생했습니다.');
+                    return;
+                }
+
+                if (!matchedUsers || matchedUsers.length === 0) {
+                    showToast('이 디스코드 계정으로 등록된 KDB Pay 계정을 찾을 수 없습니다. 프로필에서 디스코드 숫자 ID를 먼저 등록해 주세요.');
+                    return;
+                }
+                if (matchedUsers.length > 1) {
+                    showToast('동일한 디스코드 ID로 등록된 계정이 여러 개 있습니다. 관리자에게 문의해 주세요.');
+                    return;
+                }
+
+                const matched = matchedUsers[0];
+                let localUser = state.users.find(u => u.id === matched.id);
+                if (!localUser) {
+                    localUser = { id: matched.id, alias: matched.alias, discord: matched.discord, accounts: [], transactions: [] };
+                    state.users.push(localUser);
+                } else {
+                    localUser.alias = matched.alias;
+                    localUser.discord = matched.discord;
+                }
+
+                state.authMode = 'login';
+                state.selectedLoginUserId = matched.id;
+                state.enteredPin = '';
+                renderAuthLoginView();
+                showToast('디스코드 본인 확인이 완료됐습니다. PIN을 입력해 주세요.');
+            } catch (err) {
+                console.error('디스코드 인증 처리 오류:', err);
+                showToast('디스코드 인증 처리 중 오류가 발생했습니다.');
+            }
         }
 
         function selectLoginUser(userId) {
