@@ -325,7 +325,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         const AD_BANNERS = [
-
+            {
+                src: 'ad-1.png',
+                link: 'https://namu.wiki/w/%EB%83%A5%EB%87%BD%EB%85%95%EB%83%A5',
+                position: '50% 33%'
+            }
         ];
         const AD_SLIDE_INTERVAL_MS = 4000;
 
@@ -341,9 +345,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             banner.classList.remove('hidden');
             banner.innerHTML = AD_BANNERS.map((img, idx) => {
-                const slideImg = '<img src="' + img.src + '" class="ad-slide' + (idx === 0 ? ' active' : '') + '" alt="광고">';
+                const posStyle = img.position ? ' style="object-position: ' + img.position + ';"' : '';
+                const slideImg = '<img src="' + img.src + '" class="ad-slide' + (idx === 0 ? ' active' : '') + '" alt="광고"' + posStyle + '>';
                 return img.link
-                    ? '<a href="' + img.link + '" target="_blank" rel="noopener">' + slideImg + '</a>'
+                    ? '<a href="' + img.link + '" target="_blank" rel="noopener noreferrer" class="block w-full h-full">' + slideImg + '</a>'
                     : slideImg;
             }).join('');
 
