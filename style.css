@@ -475,3 +475,10 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, #app-container::-webkit-scroll
     width: 0;
     height: 0;
 }
+
+
+.roll-number { display: inline-flex; align-items: flex-start; font-variant-numeric: tabular-nums; vertical-align: bottom; }
+.roll-digit { display: inline-block; height: 1.3em; line-height: 1.3em; overflow: hidden; }
+.roll-strip { display: flex; flex-direction: column; will-change: transform; }
+.roll-item { display: block; height: 1.3em; line-height: 1.3em; text-align: center; }
+.roll-static { display: inline-block; height: 1.3em; line-height: 1.3em; }
