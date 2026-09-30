@@ -407,7 +407,15 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         function getActiveAccount() {
             const user = getCurrentUser();
             if (!user) return null;
-            return user.accounts.find(acc => acc.id === user.currentAccountId) || user.accounts[0];
+            return user.accounts.find(acc => acc.id === user.sessionAccountId)
+                || user.accounts.find(acc => acc.id === user.currentAccountId)
+                || user.accounts[0];
+        }
+
+        function getPrimaryAccount() {
+            const user = getCurrentUser();
+            if (!user) return null;
+            return user.accounts.find(acc => acc.id === user.currentAccountId) || user.accounts[0] || null;
         }
 
         function genId(prefix) {
@@ -770,36 +778,31 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             requestAnimationFrame(step);
         }
 
+        function copyTextToClipboard(text, successMsg) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast(successMsg))
+                    .catch(() => fallbackCopyText(text, successMsg));
+            } else {
+                fallbackCopyText(text, successMsg);
+            }
+        }
+
         function copyPaymentCode() {
             if (!state.currentPayCode) return;
             const text = state.currentPayCode;
-
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text)
-                    .then(() => showToast('결제 코드가 복사되었습니다: ' + text))
-                    .catch(() => fallbackCopyText(text));
-            } else {
-                fallbackCopyText(text);
-            }
+            copyTextToClipboard(text, '결제 코드가 복사되었습니다: ' + text);
         }
 
-        function copyAccountNo() {
+        function copyAccountNo(accId) {
             const user = getCurrentUser();
-            const activeAcc = getActiveAccount();
-            if (!user || !activeAcc) return;
-
-            const text = activeAcc.accountNo;
-
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text)
-                    .then(() => showToast('계좌번호가 복사되었습니다: ' + text))
-                    .catch(() => fallbackCopyText(text));
-            } else {
-                fallbackCopyText(text);
-            }
+            if (!user) return;
+            const acc = accId ? user.accounts.find(a => a.id === accId) : getActiveAccount();
+            if (!acc) return;
+            copyTextToClipboard(acc.accountNo, '계좌번호가 복사되었습니다: ' + acc.accountNo);
         }
 
-        function fallbackCopyText(text) {
+        function fallbackCopyText(text, successMsg) {
             const temp = document.createElement('textarea');
             temp.value = text;
             temp.style.position = 'fixed';
@@ -808,8 +811,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             temp.focus();
             temp.select();
             try {
-                document.execCommand('copy');
-                showToast('계좌번호가 복사되었습니다: ' + text);
+                const ok = document.execCommand('copy');
+                showToast(ok ? (successMsg || '복사되었습니다: ' + text) : '복사에 실패했습니다. 직접 드래그해서 선택해 주세요.');
             } catch (err) {
                 showToast('복사에 실패했습니다. 직접 드래그해서 선택해 주세요.');
             }
@@ -1574,6 +1577,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             localUser.uid = row.uid;
             localUser.points = row.points || 0;
             localUser.currentAccountId = row.current_account_id;
+            localUser.sessionAccountId = null;
             localUser.attendanceHistory = row.attendance_history || {};
             localUser.purchasedItems = row.purchased_items || [];
             localUser.isAdmin = row.is_admin || false;
@@ -1797,11 +1801,20 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
+            const primary = getPrimaryAccount();
+            const primaryId = primary ? primary.id : null;
+
             container.innerHTML = user.accounts.map((acc, idx) => {
                 const borderClass = idx === 0 ? '' : 'border-t border-zinc-100';
+                const primaryBadge = acc.id === primaryId
+                    ? '<span class="ml-1.5 text-[9px] font-bold text-white bg-zinc-900 px-1.5 py-0.5 rounded-full align-middle">주계좌</span>'
+                    : '';
                 const rightSide = homeAccountEditMode
                     ? '<div class="acc-drag-handle shrink-0 ml-2 -mr-2 w-11 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'home-account-list\', \'.home-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>'
-                    : '<button onclick="quickTransferFromAccount(\'' + acc.id + '\')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors shrink-0 ml-2">송금</button>';
+                    : '<div class="flex items-center gap-1.5 shrink-0 ml-2">' +
+                        '<button onclick="copyAccountNo(\'' + acc.id + '\')" aria-label="계좌번호 복사" class="w-8 h-8 flex items-center justify-center text-zinc-500 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"><i class="fa-regular fa-copy text-xs"></i></button>' +
+                        '<button onclick="quickTransferFromAccount(\'' + acc.id + '\')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors">송금</button>' +
+                      '</div>';
 
                 return '<div class="home-acc-row flex items-center justify-between px-4 py-3.5 ' + borderClass + '" data-acc-id="' + acc.id + '">' +
                     '<div class="flex items-center gap-3 min-w-0">' +
@@ -1809,8 +1822,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '<i class="fa-solid fa-won-sign text-white text-xs"></i>' +
                         '</div>' +
                         '<div class="min-w-0">' +
-                            '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원</div>' +
-                            '<div class="text-[11px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(acc.name) + '</div>' +
+                            '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원' + primaryBadge + '</div>' +
+                            '<div class="text-[11px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(acc.name) + ' · <span class="font-mono">' + escapeHtml(acc.accountNo) + '</span></div>' +
                         '</div>' +
                     '</div>' +
                     rightSide +
@@ -1952,9 +1965,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         function quickTransferFromAccount(accId) {
             const user = getCurrentUser();
             if (!user) return;
-            if (user.currentAccountId !== accId) {
-                user.currentAccountId = accId;
-                saveAppData();
+            if (user.sessionAccountId !== accId) {
+                user.sessionAccountId = accId;
                 renderApp();
             }
             openTransferModal();
@@ -2287,7 +2299,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 memoWrap.classList.add('hidden');
             }
 
-            closeModal('modal-transfer');
+            closeModal('modal-transfer', true);
             openModal('modal-transfer-confirm');
         }
 
@@ -2400,6 +2412,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             closeModal('modal-transfer-confirm');
+            user.sessionAccountId = null;
             renderApp();
             showToast(match.alias + ' 님에게 ' + formatNumber(amount) + '원을 이체하였습니다.');
 
@@ -2461,7 +2474,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             user.accounts.push(newAccount);
             setLocalAccountOrder(user.id, user.accounts.map(a => a.id));
-            user.currentAccountId = newAccId;
+            if (!user.currentAccountId) user.currentAccountId = newAccId;
             subscribeToRealtimeUpdates();
 
             saveAppData();
@@ -2561,19 +2574,26 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     : '<i class="fa-solid fa-sort mr-1"></i>순서 변경';
             }
             if (hint) hint.classList.toggle('hidden', !accountReorderMode);
-            if (title) title.innerText = accountReorderMode ? '계좌 순서 변경' : '대표 계좌 선택';
+            if (title) title.innerText = accountReorderMode ? '계좌 순서 변경' : '내 계좌 관리';
 
-            const activeId = user.currentAccountId || (accounts[0] && accounts[0].id);
+            const primary = getPrimaryAccount();
+            const primaryId = primary ? primary.id : null;
+            const canDelete = accounts.length > 1;
 
             container.innerHTML = accounts.map((acc, idx) => {
-                const isSelected = acc.id === activeId;
+                const isPrimary = acc.id === primaryId;
+                const primaryBadge = isPrimary
+                    ? '<span class="ml-1.5 text-[9px] font-bold text-white bg-zinc-900 px-1.5 py-0.5 rounded-full align-middle">주계좌</span>'
+                    : '';
+                const frozenBadge = acc.isFrozen
+                    ? '<span class="ml-1.5 text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full align-middle">정지</span>'
+                    : '';
                 const info = '<div class="min-w-0 flex-1">' +
-                        '<div class="font-bold text-xs text-zinc-900 truncate">' + escapeHtml(acc.name) + '</div>' +
+                        '<div class="font-bold text-xs text-zinc-900 truncate">' + escapeHtml(acc.name) + primaryBadge + frozenBadge + '</div>' +
                         '<div class="text-[11px] text-zinc-400 font-mono mt-0.5">' + escapeHtml(acc.accountNo) + '</div>' +
                     '</div>';
                 const balance = '<div class="text-right shrink-0">' +
                         '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원</div>' +
-                        (isSelected ? '<span class="text-[10px] text-zinc-900 bg-zinc-200 font-bold px-2 py-0.5 rounded-full mt-1 inline-block">사용 중</span>' : '') +
                     '</div>';
 
                 if (accountReorderMode) {
@@ -2588,9 +2608,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     '</div>';
                 }
 
-                const borderClass = isSelected ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 bg-white hover:bg-zinc-50';
-                return '<div onclick="selectActiveAccount(\'' + acc.id + '\')" class="p-4 rounded-2xl border ' + borderClass + ' cursor-pointer flex justify-between items-center gap-3 transition-all">' +
-                    info + balance +
+                const btnCls = 'flex-1 text-[11px] font-bold py-2 rounded-lg transition-colors ';
+                const primaryBtn = isPrimary
+                    ? '<div class="' + btnCls + 'bg-zinc-900 text-white text-center"><i class="fa-solid fa-star mr-1"></i>주계좌</div>'
+                    : '<button type="button" onclick="setPrimaryAccount(\'' + acc.id + '\')" class="' + btnCls + 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700">주계좌로 설정</button>';
+                const copyBtn = '<button type="button" onclick="copyAccountNo(\'' + acc.id + '\')" class="' + btnCls + 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700"><i class="fa-regular fa-copy mr-1"></i>복사</button>';
+                const delBtn = '<button type="button" onclick="openDeleteAccountModal(\'' + acc.id + '\')" ' + (canDelete ? '' : 'disabled ') + 'class="' + btnCls + (canDelete ? 'bg-red-50 hover:bg-red-100 text-red-600' : 'bg-zinc-50 text-zinc-300 cursor-not-allowed') + '"><i class="fa-regular fa-trash-can mr-1"></i>삭제</button>';
+
+                const borderClass = isPrimary ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 bg-white';
+                return '<div class="p-4 rounded-2xl border ' + borderClass + '">' +
+                    '<div class="flex justify-between items-center gap-3">' + info + balance + '</div>' +
+                    '<div class="flex gap-2 mt-3">' + primaryBtn + copyBtn + delBtn + '</div>' +
                 '</div>';
             }).join('');
         }
@@ -2611,15 +2639,167 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (typeof renderHomeAccountList === 'function') renderHomeAccountList();
         }
 
-        function selectActiveAccount(accId) {
+        function setPrimaryAccount(accId) {
             const user = getCurrentUser();
             if (!user) return;
+            const acc = user.accounts.find(a => a.id === accId);
+            if (!acc) return;
 
+            const wasPrimary = user.currentAccountId === accId;
             user.currentAccountId = accId;
+            user.sessionAccountId = null;
+
+            if (wasPrimary) {
+                renderApp();
+                renderAccountSelectorList();
+                showToast('이미 주계좌로 설정되어 있습니다.');
+                return;
+            }
+
             saveAppData();
-            closeModal('modal-account-selector');
             renderApp();
-            showToast('대표 계좌가 변경되었습니다.');
+            renderAccountSelectorList();
+            showToast('\'' + acc.name + '\' 계좌가 주계좌로 설정되었습니다.');
+        }
+
+        function selectActiveAccount(accId) {
+            setPrimaryAccount(accId);
+        }
+
+        function openDeleteAccountModal(accId) {
+            const user = getCurrentUser();
+            if (!user) return;
+            const acc = user.accounts.find(a => a.id === accId);
+            if (!acc) return;
+
+            if (user.accounts.length <= 1) {
+                showToast('마지막 남은 계좌는 삭제할 수 없습니다.');
+                return;
+            }
+            if (acc.isFrozen) {
+                showToast('정지된 계좌는 삭제할 수 없습니다.');
+                return;
+            }
+            if (Number(acc.balance) !== 0) {
+                showToast('잔액이 남아 있는 계좌는 삭제할 수 없습니다. 잔액을 다른 계좌로 이체해 주세요.');
+                return;
+            }
+
+            state.pendingDeleteAccountId = accId;
+            const primary = getPrimaryAccount();
+            const nameEl = document.getElementById('delete-account-name');
+            const noEl = document.getElementById('delete-account-no');
+            const noteEl = document.getElementById('delete-account-primary-note');
+            const confirmBtn = document.getElementById('delete-account-confirm-btn');
+            if (nameEl) nameEl.innerText = acc.name;
+            if (noEl) noEl.innerText = acc.accountNo;
+            if (noteEl) noteEl.classList.toggle('hidden', !(primary && primary.id === accId));
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerText = '삭제하기';
+            }
+            openModal('modal-delete-account');
+        }
+
+        function cancelDeleteAccount() {
+            state.pendingDeleteAccountId = null;
+            closeModal('modal-delete-account');
+        }
+
+        let _deletingAccount = false;
+        async function confirmDeleteAccount() {
+            if (_deletingAccount) return;
+
+            const user = getCurrentUser();
+            const accId = state.pendingDeleteAccountId;
+            if (!user || !accId) {
+                cancelDeleteAccount();
+                return;
+            }
+
+            const acc = user.accounts.find(a => a.id === accId);
+            if (!acc || user.accounts.length <= 1 || acc.isFrozen || Number(acc.balance) !== 0) {
+                cancelDeleteAccount();
+                return;
+            }
+
+            _deletingAccount = true;
+            const confirmBtn = document.getElementById('delete-account-confirm-btn');
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.innerText = '삭제 중...';
+            }
+
+            let failReason = null;
+            try {
+                const { data, error } = await sbClient.rpc('delete_account', {
+                    p_user_id: user.id,
+                    p_account_id: accId
+                });
+
+                if (error) {
+                    const missing = error.code === 'PGRST202' || (error.message || '').includes('Could not find the function');
+                    if (!missing) {
+                        console.error('계좌 삭제 오류:', error);
+                        failReason = 'error';
+                    } else {
+                        const { data: removed, error: delErr } = await sbClient
+                            .from('accounts')
+                            .delete()
+                            .eq('id', accId)
+                            .eq('user_id', user.id)
+                            .select('id');
+                        if (delErr || !removed || removed.length === 0) {
+                            console.error('계좌 삭제 오류:', delErr);
+                            failReason = 'error';
+                        }
+                    }
+                } else {
+                    const row = Array.isArray(data) ? data[0] : data;
+                    if (!row || row.ok === false) failReason = (row && row.reason) || 'error';
+                }
+            } catch (err) {
+                console.error('계좌 삭제 오류:', err);
+                failReason = 'error';
+            }
+
+            _deletingAccount = false;
+
+            if (failReason) {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = '삭제하기';
+                }
+                const msg = {
+                    balance_remaining: '잔액이 남아 있는 계좌는 삭제할 수 없습니다.',
+                    last_account: '마지막 남은 계좌는 삭제할 수 없습니다.',
+                    frozen: '정지된 계좌는 삭제할 수 없습니다.',
+                    not_found: '이미 삭제되었거나 존재하지 않는 계좌입니다.'
+                }[failReason] || '계좌를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+                showToast(msg);
+                return;
+            }
+
+            const primaryBefore = getPrimaryAccount();
+            const wasPrimary = !!primaryBefore && primaryBefore.id === accId;
+            const deletedName = acc.name;
+
+            user.accounts = user.accounts.filter(a => a.id !== accId);
+            user.transactions = (user.transactions || []).filter(t => t.accountId !== accId);
+            if (wasPrimary && user.accounts[0]) user.currentAccountId = user.accounts[0].id;
+            if (user.sessionAccountId === accId) user.sessionAccountId = null;
+
+            persistAccountOrder(user);
+            subscribeToRealtimeUpdates();
+            saveAppData();
+
+            state.pendingDeleteAccountId = null;
+            closeModal('modal-delete-account');
+            renderApp();
+            renderAccountSelectorList();
+
+            const newPrimary = getPrimaryAccount();
+            showToast('\'' + deletedName + '\' 계좌를 삭제했습니다.' + (wasPrimary && newPrimary ? ' \'' + newPrimary.name + '\' 계좌가 주계좌로 변경되었습니다.' : ''));
         }
 
         function openProfileEditModal() {
@@ -3934,6 +4114,15 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        async function removeRejectedMerchant(merchantId) {
+            try {
+                await sbClient.from('merchant_sales').delete().eq('merchant_id', merchantId);
+                await sbClient.from('merchants').delete().eq('id', merchantId).eq('status', 'rejected');
+            } catch (err) {
+                console.warn('거절된 가맹점 삭제 오류:', err);
+            }
+        }
+
         async function adminReviewMerchant(merchantId, decision, refreshDetail) {
             const admin = getCurrentUser();
             if (!admin || !admin.isAdmin) {
@@ -3943,6 +4132,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const adminPin = await promptAdminPin();
             if (!adminPin) return;
+
+            let wasPending = false;
+            try {
+                const { data: curRow } = await sbClient.from('merchants_public').select('status').eq('id', merchantId).single();
+                wasPending = !!curRow && curRow.status === 'pending';
+            } catch (err) {
+                wasPending = false;
+            }
 
             try {
                 const { data: rpcData, error: rpcErr } = await sbClient.rpc('admin_review_merchant', {
@@ -3964,10 +4161,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                showToast(decision === 'approved' ? '가맹점을 승인했습니다.' : '가맹점 가입을 거절했습니다.');
+                const removed = decision === 'rejected' && wasPending;
+                if (removed) {
+                    await removeRejectedMerchant(merchantId);
+                    state.merchants = state.merchants.filter(m => m.id !== merchantId);
+                    closeAdminMerchantDetail();
+                }
+
+                showToast(decision === 'approved' ? '가맹점을 승인했습니다.' : (removed ? '가맹점 가입을 거절하고 목록에서 삭제했습니다.' : '가맹점 가입을 거절했습니다.'));
                 renderAdminPendingMerchants();
                 renderAdminMerchantList(document.getElementById('admin-merchant-search') ? document.getElementById('admin-merchant-search').value : '');
-                if (refreshDetail) openAdminMerchantDetail(merchantId);
+                if (refreshDetail && !removed) openAdminMerchantDetail(merchantId);
             } catch (err) {
                 console.error('가맹점 승인 처리 오류:', err);
                 showToast('처리 중 오류가 발생했습니다.');
@@ -4414,7 +4618,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('merchants_public').select('*');
+                let query = sbClient.from('merchants_public').select('*')
+                    .or('status.neq.rejected,status.is.null,total_sales.gt.0');
                 if (search && search.trim()) {
                     query = query.ilike('name', '%' + search.trim() + '%');
                 }
@@ -5226,7 +5431,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             setText('settings-head-discord', user.discord || '-');
             setText('settings-uid', user.uid || '-');
 
-            const acc = getActiveAccount();
+            const acc = getPrimaryAccount();
             setText('settings-account', acc ? (acc.name + ' · ' + acc.accountNo) : '-');
             setText('settings-account-count', ((user.accounts || []).length) + '개');
             setText('settings-points', formatNumber(user.points || 0) + ' P');
@@ -5411,9 +5616,16 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
-        function closeModal(modalId) {
+        function closeModal(modalId, keepSession) {
             const modal = document.getElementById(modalId);
             if (modal) {
                 modal.classList.add('hidden-modal');
+            }
+            if (modalId === 'modal-transfer' && !keepSession) {
+                const user = getCurrentUser();
+                if (user && user.sessionAccountId) {
+                    user.sessionAccountId = null;
+                    renderApp();
+                }
             }
         }
