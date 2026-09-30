@@ -746,9 +746,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             el.setAttribute('aria-label', newStr + '원');
             el._rollToken = (el._rollToken || 0) + 1;
             const token = el._rollToken;
+            el.classList.add('roll-number');
 
             if (oldValue === newValue) {
-                el.classList.remove('roll-number');
                 el.textContent = newStr;
                 return;
             }
@@ -759,7 +759,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const totalDigits = chars.filter(c => /\d/.test(c)).length;
             const RUNS = 3;
 
-            el.classList.add('roll-number');
             el.textContent = '';
 
             const moves = [];
@@ -809,7 +808,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             setTimeout(() => {
                 if (el._rollToken !== token) return;
-                el.classList.remove('roll-number');
                 el.textContent = newStr;
             }, duration + moves.length * 45 + 80);
         }
@@ -1867,7 +1865,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '<i class="fa-solid fa-won-sign text-white text-xs"></i>' +
                         '</div>' +
                         '<div class="min-w-0">' +
-                            '<div class="font-extrabold text-sm text-zinc-900"><span class="home-acc-balance" data-acc-balance="' + acc.id + '">' + formatNumber(shownBalance) + '</span>원' + primaryBadge + '</div>' +
+                            '<div class="font-extrabold text-sm text-zinc-900"><span class="home-acc-balance roll-number" data-acc-balance="' + acc.id + '">' + formatNumber(shownBalance) + '</span>원' + primaryBadge + '</div>' +
                             '<div class="text-[11px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(acc.name) + ' · <span class="font-mono">' + escapeHtml(acc.accountNo) + '</span></div>' +
                         '</div>' +
                     '</div>' +
