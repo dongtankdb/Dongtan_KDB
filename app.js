@@ -738,44 +738,87 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
-        function animateNumberChange(element, newValue, duration) {
-            if (!element) return;
-            duration = duration || 700;
+        function rollNumber(el, oldValue, newValue, duration) {
+            if (!el) return;
+            duration = duration || 900;
 
-            const isFirstRender = !element.dataset.balanceInit;
-            element.dataset.balanceInit = '1';
+            const newStr = formatNumber(newValue);
+            el.setAttribute('aria-label', newStr + '원');
+            el._rollToken = (el._rollToken || 0) + 1;
+            const token = el._rollToken;
 
-            const oldValue = parseInt((element.innerText || '0').replace(/[^0-9-]/g, '')) || 0;
             if (oldValue === newValue) {
-                element.innerText = formatNumber(newValue);
+                el.classList.remove('roll-number');
+                el.textContent = newStr;
                 return;
             }
 
-            const diff = newValue - oldValue;
-            const startTime = performance.now();
+            const dir = newValue > oldValue ? 1 : -1;
+            const oldDigits = formatNumber(oldValue).replace(/[^0-9]/g, '');
+            const chars = newStr.split('');
+            const totalDigits = chars.filter(c => /\d/.test(c)).length;
+            const RUNS = 3;
 
-            if (!isFirstRender) {
-                element.classList.remove('balance-pulse-up', 'balance-pulse-down');
-                void element.offsetWidth;
-                element.classList.add(diff > 0 ? 'balance-pulse-up' : 'balance-pulse-down');
-                setTimeout(() => {
-                    element.classList.remove('balance-pulse-up', 'balance-pulse-down');
-                }, duration + 300);
-            }
+            el.classList.add('roll-number');
+            el.textContent = '';
 
-            function step(now) {
-                const elapsed = now - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                const eased = 1 - Math.pow(1 - progress, 3);
-                const current = Math.round(oldValue + diff * eased);
-                element.innerText = formatNumber(current);
-                if (progress < 1) {
-                    requestAnimationFrame(step);
-                } else {
-                    element.innerText = formatNumber(newValue);
+            const moves = [];
+            let digitIndex = 0;
+
+            chars.forEach(ch => {
+                if (!/\d/.test(ch)) {
+                    const sep = document.createElement('span');
+                    sep.className = 'roll-static';
+                    sep.textContent = ch;
+                    el.appendChild(sep);
+                    return;
                 }
-            }
-            requestAnimationFrame(step);
+
+                const fromRight = totalDigits - 1 - digitIndex;
+                const oldIdx = oldDigits.length - 1 - fromRight;
+                const oldD = oldIdx >= 0 ? parseInt(oldDigits[oldIdx], 10) : 0;
+                const target = parseInt(ch, 10);
+                const startPos = 10 + oldD;
+                const steps = dir > 0 ? ((target - oldD + 10) % 10) : -((oldD - target + 10) % 10);
+                const endPos = startPos + steps;
+
+                const col = document.createElement('span');
+                col.className = 'roll-digit';
+                const strip = document.createElement('span');
+                strip.className = 'roll-strip';
+                for (let n = 0; n < 10 * RUNS; n++) {
+                    const item = document.createElement('span');
+                    item.className = 'roll-item';
+                    item.textContent = String(n % 10);
+                    strip.appendChild(item);
+                }
+                strip.style.transform = 'translateY(' + (-(startPos / (10 * RUNS)) * 100) + '%)';
+                col.appendChild(strip);
+                el.appendChild(col);
+
+                if (endPos !== startPos) moves.push({ strip, endPos });
+                digitIndex++;
+            });
+
+            void el.offsetWidth;
+
+            moves.forEach((m, order) => {
+                m.strip.style.transition = 'transform ' + duration + 'ms cubic-bezier(0.22, 1, 0.36, 1) ' + (order * 45) + 'ms';
+                m.strip.style.transform = 'translateY(' + (-(m.endPos / (10 * RUNS)) * 100) + '%)';
+            });
+
+            setTimeout(() => {
+                if (el._rollToken !== token) return;
+                el.classList.remove('roll-number');
+                el.textContent = newStr;
+            }, duration + moves.length * 45 + 80);
+        }
+
+        function animateNumberChange(element, newValue, duration) {
+            if (!element) return;
+            const prev = element.dataset.rollValue !== undefined ? Number(element.dataset.rollValue) : newValue;
+            element.dataset.rollValue = String(newValue);
+            rollNumber(element, prev, newValue, duration);
         }
 
         function copyTextToClipboard(text, successMsg) {
@@ -1803,9 +1846,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const primary = getPrimaryAccount();
             const primaryId = primary ? primary.id : null;
+            const prevBalances = state.homeBalanceSnapshot || {};
 
             container.innerHTML = user.accounts.map((acc, idx) => {
                 const borderClass = idx === 0 ? '' : 'border-t border-zinc-100';
+                const shownBalance = Object.prototype.hasOwnProperty.call(prevBalances, acc.id) ? prevBalances[acc.id] : acc.balance;
                 const primaryBadge = acc.id === primaryId
                     ? '<span class="ml-1.5 text-[9px] font-bold text-white bg-zinc-900 px-1.5 py-0.5 rounded-full align-middle">주계좌</span>'
                     : '';
@@ -1822,13 +1867,24 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '<i class="fa-solid fa-won-sign text-white text-xs"></i>' +
                         '</div>' +
                         '<div class="min-w-0">' +
-                            '<div class="font-extrabold text-sm text-zinc-900">' + formatNumber(acc.balance) + '원' + primaryBadge + '</div>' +
+                            '<div class="font-extrabold text-sm text-zinc-900"><span class="home-acc-balance" data-acc-balance="' + acc.id + '">' + formatNumber(shownBalance) + '</span>원' + primaryBadge + '</div>' +
                             '<div class="text-[11px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(acc.name) + ' · <span class="font-mono">' + escapeHtml(acc.accountNo) + '</span></div>' +
                         '</div>' +
                     '</div>' +
                     rightSide +
                 '</div>';
             }).join('');
+
+            const nextSnapshot = {};
+            user.accounts.forEach(acc => {
+                nextSnapshot[acc.id] = acc.balance;
+                const el = container.querySelector('[data-acc-balance="' + acc.id + '"]');
+                if (!el) return;
+                if (Object.prototype.hasOwnProperty.call(prevBalances, acc.id) && prevBalances[acc.id] !== acc.balance) {
+                    rollNumber(el, prevBalances[acc.id], acc.balance);
+                }
+            });
+            state.homeBalanceSnapshot = nextSnapshot;
         }
 
         function startAccountDrag(e, handleEl, listId, rowSelector) {
