@@ -2127,15 +2127,35 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     }
                 }
 
-                const { data: nameMatches, error: nameErr } = await sbClient
+                const rawQuery = String(query || '').trim();
+                const noAt = rawQuery.replace(/^@/, '');
+                const digitsQuery = rawQuery.replace(/[\s-]/g, '');
+                const isDigits = /^\d+$/.test(digitsQuery);
+
+                const clauses = ['alias.eq.' + pgQuoteFilterValue(rawQuery), 'discord.eq.' + pgQuoteFilterValue(rawQuery)];
+                if (noAt && noAt !== rawQuery) clauses.push('discord.eq.' + pgQuoteFilterValue(noAt));
+                if (isDigits) {
+                    clauses.push('uid.eq.' + pgQuoteFilterValue(digitsQuery));
+                    if (digitsQuery.length >= 15) clauses.push('discord_numeric_id.eq.' + pgQuoteFilterValue(digitsQuery));
+                }
+
+                const { data: foundUsers, error: nameErr } = await sbClient
                     .from('users_public')
                     .select('id, alias, current_account_id')
-                    .eq('alias', query);
+                    .or(clauses.join(','))
+                    .limit(5);
 
                 if (nameErr) {
                     console.error('수신자 조회 오류:', nameErr);
                     return 'error';
                 }
+
+                const seenUserIds = new Set();
+                const nameMatches = (foundUsers || []).filter(u => {
+                    if (seenUserIds.has(u.id)) return false;
+                    seenUserIds.add(u.id);
+                    return true;
+                });
 
                 if (nameMatches && nameMatches.length > 1) return 'ambiguous';
 
@@ -2214,7 +2234,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const memo = memoInput ? memoInput.value.trim() : '';
 
             if (!recipient) {
-                showToast('받는 사람 또는 계좌번호를 입력해 주세요.');
+                showToast('받는 사람의 이름, 계좌번호, 디스코드 ID, UID 중 하나를 입력해 주세요.');
                 return;
             }
             if (!amount || amount <= 0) {
@@ -2259,7 +2279,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const match = await findRecipientAccountLive(recipient);
 
             if (match === 'ambiguous') {
-                showToast('동일한 이름의 회원이 여러 명 있습니다. 계좌번호로 입력해 주세요.');
+                showToast('일치하는 회원이 여러 명 있습니다. UID나 계좌번호로 입력해 주세요.');
                 return;
             }
             if (match === 'error') {
@@ -2267,7 +2287,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
             if (!match) {
-                showToast('받는 사람을 찾을 수 없습니다. 계좌번호 또는 정확한 닉네임을 입력해 주세요.');
+                showToast('받는 사람을 찾을 수 없습니다. 계좌번호, 이름, 디스코드 ID, UID 중 하나를 정확히 입력해 주세요.');
                 return;
             }
             if (match.accountId === activeAcc.id) {
@@ -5058,7 +5078,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const match = await findRecipientAccountLive(recipient);
             if (match === 'ambiguous') {
-                showToast('동일한 이름의 회원이 여러 명 있습니다. 계좌번호로 입력해 주세요.');
+                showToast('일치하는 회원이 여러 명 있습니다. UID나 계좌번호로 입력해 주세요.');
                 restoreBtn();
                 return;
             }
@@ -5068,7 +5088,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
             if (!match) {
-                showToast('받는 사람을 찾을 수 없습니다. 계좌번호 또는 정확한 닉네임을 입력해 주세요.');
+                showToast('받는 사람을 찾을 수 없습니다. 계좌번호, 이름, 디스코드 ID, UID 중 하나를 정확히 입력해 주세요.');
                 restoreBtn();
                 return;
             }
