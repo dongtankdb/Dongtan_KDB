@@ -2,7 +2,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_w3iECjE7i0Y2tPtPDAqaAA_pPHDDXVi';
         const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const VERIFICATION_API_BASE_URL = 'http://localhost:3000';
+        const VERIFICATION_API_PRODUCTION_URL = '';
+        const VERIFICATION_API_BASE_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+            ? 'http://localhost:3000'
+            : VERIFICATION_API_PRODUCTION_URL;
 
         function maskAccountNo(no) {
             const str = String(no || '');
@@ -955,9 +958,22 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         const debouncedRenderAdminTransactionSearch = debounce((value) => renderAdminTransactionSearch(value), 300);
 
         function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.innerText = str;
-            return div.innerHTML;
+            return String(str === null || str === undefined ? '' : str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function isValidAlias(alias) {
+            const v = String(alias || '').trim();
+            if (v.length < 1 || v.length > 20) return false;
+            return !/[<>"'`\\\u0000-\u001f\u007f\u2028\u2029]/.test(v);
+        }
+
+        function jsArg(value) {
+            return escapeHtml(JSON.stringify(String(value === null || value === undefined ? '' : value)));
         }
 
         function formatRelativeDate(isoString) {
@@ -1529,6 +1545,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         async function requestDiscordVerification(userId) {
+            if (!VERIFICATION_API_BASE_URL) {
+                showToast('본인인증 서버 주소가 설정되지 않았습니다. 관리자에게 문의해 주세요.');
+                return false;
+            }
             try {
                 const response = await fetch(VERIFICATION_API_BASE_URL + '/api/request-verification', {
                     method: 'POST',
@@ -1699,6 +1719,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             if (pin.length < 4) {
                 showToast('PIN 비밀번호 4자리를 모두 입력하세요.');
+                return;
+            }
+
+            if (!isValidAlias(alias)) {
+                showToast('가명은 20자 이하로, 특수문자(< > \" \' ` \\) 없이 입력해 주세요.');
                 return;
             }
 
@@ -1897,8 +1922,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const rightSide = homeAccountEditMode
                     ? '<div class="acc-drag-handle shrink-0 ml-2 -mr-2 w-11 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'home-account-list\', \'.home-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>'
                     : '<div class="flex items-center gap-1.5 shrink-0 ml-2">' +
-                        '<button onclick="copyAccountNo(\'' + acc.id + '\')" aria-label="계좌번호 복사" class="w-8 h-8 flex items-center justify-center text-zinc-500 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"><i class="fa-regular fa-copy text-xs"></i></button>' +
-                        '<button onclick="quickTransferFromAccount(\'' + acc.id + '\')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors">송금</button>' +
+                        '<button onclick="copyAccountNo(' + jsArg(acc.id) + ')" aria-label="계좌번호 복사" class="w-8 h-8 flex items-center justify-center text-zinc-500 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"><i class="fa-regular fa-copy text-xs"></i></button>' +
+                        '<button onclick="quickTransferFromAccount(' + jsArg(acc.id) + ')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors">송금</button>' +
                       '</div>';
 
                 return '<div class="home-acc-row flex items-center justify-between px-4 py-3.5 ' + borderClass + '" data-acc-id="' + acc.id + '">' +
@@ -2090,7 +2115,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const amtClass = isPositive ? 'text-emerald-600 font-extrabold' : (tx.amount < 0 ? 'text-zinc-900 font-extrabold' : 'text-zinc-500 font-semibold');
                 const sign = isPositive ? '+' : '';
                 const memoHtml = tx.memo ? '<div class="text-[10px] text-zinc-500 mt-1 italic">"' + escapeHtml(tx.memo) + '"</div>' : '';
-                const displayDate = tx.createdAt ? formatRelativeDate(tx.createdAt) : tx.date;
+                const displayDate = escapeHtml(tx.createdAt ? formatRelativeDate(tx.createdAt) : tx.date);
 
                 return '<div class="bg-white p-3.5 rounded-2xl border border-zinc-200/80 shadow-sm flex justify-between items-center">' +
                     '<div>' +
@@ -2718,8 +2743,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         '<div class="acc-drag-handle shrink-0 -ml-1 w-9 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'account-selector-list\', \'.sel-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>' +
                         info + balance +
                         '<div class="flex flex-col gap-1 shrink-0">' +
-                            '<button type="button" onclick="moveAccount(\'' + acc.id + '\', -1)" ' + (idx === 0 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="위로"><i class="fa-solid fa-chevron-up text-[11px]"></i></button>' +
-                            '<button type="button" onclick="moveAccount(\'' + acc.id + '\', 1)" ' + (idx === accounts.length - 1 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="아래로"><i class="fa-solid fa-chevron-down text-[11px]"></i></button>' +
+                            '<button type="button" onclick="moveAccount(' + jsArg(acc.id) + ', -1)" ' + (idx === 0 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="위로"><i class="fa-solid fa-chevron-up text-[11px]"></i></button>' +
+                            '<button type="button" onclick="moveAccount(' + jsArg(acc.id) + ', 1)" ' + (idx === accounts.length - 1 ? 'disabled' : '') + ' class="' + btnBase + '" aria-label="아래로"><i class="fa-solid fa-chevron-down text-[11px]"></i></button>' +
                         '</div>' +
                     '</div>';
                 }
@@ -2727,9 +2752,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const btnCls = 'flex-1 text-[11px] font-bold py-2 rounded-lg transition-colors ';
                 const primaryBtn = isPrimary
                     ? '<div class="' + btnCls + 'bg-zinc-900 text-white text-center"><i class="fa-solid fa-star mr-1"></i>주계좌</div>'
-                    : '<button type="button" onclick="setPrimaryAccount(\'' + acc.id + '\')" class="' + btnCls + 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700">주계좌로 설정</button>';
-                const copyBtn = '<button type="button" onclick="copyAccountNo(\'' + acc.id + '\')" class="' + btnCls + 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700"><i class="fa-regular fa-copy mr-1"></i>복사</button>';
-                const delBtn = '<button type="button" onclick="openDeleteAccountModal(\'' + acc.id + '\')" ' + (canDelete ? '' : 'disabled ') + 'class="' + btnCls + (canDelete ? 'bg-red-50 hover:bg-red-100 text-red-600' : 'bg-zinc-50 text-zinc-300 cursor-not-allowed') + '"><i class="fa-regular fa-trash-can mr-1"></i>삭제</button>';
+                    : '<button type="button" onclick="setPrimaryAccount(' + jsArg(acc.id) + ')" class="' + btnCls + 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700">주계좌로 설정</button>';
+                const copyBtn = '<button type="button" onclick="copyAccountNo(' + jsArg(acc.id) + ')" class="' + btnCls + 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700"><i class="fa-regular fa-copy mr-1"></i>복사</button>';
+                const delBtn = '<button type="button" onclick="openDeleteAccountModal(' + jsArg(acc.id) + ')" ' + (canDelete ? '' : 'disabled ') + 'class="' + btnCls + (canDelete ? 'bg-red-50 hover:bg-red-100 text-red-600' : 'bg-zinc-50 text-zinc-300 cursor-not-allowed') + '"><i class="fa-regular fa-trash-can mr-1"></i>삭제</button>';
 
                 const borderClass = isPrimary ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 bg-white';
                 return '<div class="p-4 rounded-2xl border ' + borderClass + '">' +
@@ -3150,7 +3175,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             if (dropdownElem) {
                 dropdownElem.innerHTML = listedMerchants.map(m =>
-                    '<div onclick="selectLoginMerchant(\'' + m.id + '\')" class="flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-zinc-50 cursor-pointer">' +
+                    '<div onclick="selectLoginMerchant(' + jsArg(m.id) + ')" class="flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-zinc-50 cursor-pointer">' +
                         '<i class="fa-solid ' + getCategoryIcon(m.category) + ' text-zinc-500 w-3.5"></i> ' + escapeHtml(m.name) + ' (' + escapeHtml(m.category) + ')' +
                     '</div>'
                 ).join('');
@@ -4108,7 +4133,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 listEl.innerHTML = pending.map(r => {
                     const u = (users || []).find(x => x.id === r.user_id);
-                    const userLabel = u ? escapeHtml(u.alias) + ' (' + escapeHtml(u.discord) + ')' : r.user_id;
+                    const userLabel = u ? escapeHtml(u.alias) + ' (' + escapeHtml(u.discord) + ')' : escapeHtml(r.user_id);
                     return '<div class="border border-zinc-200 rounded-xl p-3">' +
                         '<div class="flex justify-between items-center mb-2">' +
                             '<div>' +
@@ -4119,8 +4144,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '<div class="text-sm font-extrabold text-zinc-900 shrink-0">' + formatNumber(r.amount) + '원</div>' +
                         '</div>' +
                         '<div class="flex gap-1.5">' +
-                            '<button onclick="adminReviewTopup(\'' + r.id + '\', \'rejected\')" class="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">거절</button>' +
-                            '<button onclick="adminReviewTopup(\'' + r.id + '\', \'approved\')" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 rounded-lg text-xs font-bold">승인하고 충전</button>' +
+                            '<button onclick="adminReviewTopup(' + jsArg(r.id) + ', \'rejected\')" class="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">거절</button>' +
+                            '<button onclick="adminReviewTopup(' + jsArg(r.id) + ', \'approved\')" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 rounded-lg text-xs font-bold">승인하고 충전</button>' +
                         '</div>' +
                     '</div>';
                 }).join('');
@@ -4219,8 +4244,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '<div class="text-[10px] text-zinc-400">' + escapeHtml(m.category || '') + ' | 사업자번호 ' + escapeHtml(m.biz_no || '') + ' | 정산계좌 ' + escapeHtml(m.account_no || '') + '</div>' +
                         '</div>' +
                         '<div class="flex gap-1.5 shrink-0">' +
-                            '<button onclick="adminReviewMerchant(\'' + m.id + '\', \'approved\')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">승인</button>' +
-                            '<button onclick="adminReviewMerchant(\'' + m.id + '\', \'rejected\')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">거절</button>' +
+                            '<button onclick="adminReviewMerchant(' + jsArg(m.id) + ', \'approved\')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">승인</button>' +
+                            '<button onclick="adminReviewMerchant(' + jsArg(m.id) + ', \'rejected\')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">거절</button>' +
                         '</div>' +
                     '</div>'
                 ).join('');
@@ -4340,7 +4365,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '</div>' +
                             '<div class="text-sm font-extrabold text-zinc-900">' + formatNumber(acc.balance) + '원</div>' +
                         '</div>' +
-                        '<button onclick="adminToggleAccountFreeze(\'' + acc.id + '\', ' + (!acc.is_frozen) + ', \'' + userId + '\')" class="w-full mt-2 ' + (acc.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (acc.is_frozen ? '계좌 정지 해제' : '계좌 정지') + '</button>' +
+                        '<button onclick="adminToggleAccountFreeze(' + jsArg(acc.id) + ', ' + (!acc.is_frozen) + ', ' + jsArg(userId) + ')" class="w-full mt-2 ' + (acc.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (acc.is_frozen ? '계좌 정지 해제' : '계좌 정지') + '</button>' +
                     '</div>';
                 }).join('') || '<div class="text-xs text-zinc-400 mb-2">보유 계좌가 없습니다.</div>';
 
@@ -4467,8 +4492,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 const actionButtonsHtml =
                     '<div class="flex gap-1.5 mt-3">' +
-                        '<button onclick="adminReviewMerchant(\'' + mch.id + '\', \'rejected\', true)" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-xs font-bold">거절 처리</button>' +
-                        '<button onclick="adminReviewMerchant(\'' + mch.id + '\', \'approved\', true)" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-bold">승인 처리</button>' +
+                        '<button onclick="adminReviewMerchant(' + jsArg(mch.id) + ', \'rejected\', true)" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-xs font-bold">거절 처리</button>' +
+                        '<button onclick="adminReviewMerchant(' + jsArg(mch.id) + ', \'approved\', true)" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg text-xs font-bold">승인 처리</button>' +
                     '</div>';
 
                 body.innerHTML =
@@ -4553,7 +4578,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     const frozenBadge = acc && acc.is_frozen ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 ml-1.5">계좌정지</span>' : '';
                     return '<div class="border border-zinc-200 rounded-xl p-3">' +
                         '<div class="flex justify-between items-center mb-2">' +
-                            '<div class="cursor-pointer" onclick="openAdminUserDetail(\'' + u.id + '\')">' +
+                            '<div class="cursor-pointer" onclick="openAdminUserDetail(' + jsArg(u.id) + ')">' +
                                 '<div class="text-xs font-bold text-zinc-900 flex items-center hover:underline">' + escapeHtml(u.alias) + frozenBadge + '</div>' +
                                 '<div class="text-[10px] text-zinc-400">' + escapeHtml(u.discord) + ' | UID ' + escapeHtml(u.uid) + '</div>' +
                             '</div>' +
@@ -4562,18 +4587,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         (acc ? (
                             '<div class="flex gap-1.5 mb-1.5">' +
                                 '<input type="number" id="admin-amt-' + u.id + '" placeholder="금액" step="1000" class="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg p-2 text-xs focus:outline-none">' +
-                                '<button onclick="adminAdjustBalance(\'' + u.id + '\', \'' + acc.id + '\', 1)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 rounded-lg text-xs font-bold">지급</button>' +
-                                '<button onclick="adminAdjustBalance(\'' + u.id + '\', \'' + acc.id + '\', -1)" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-lg text-xs font-bold">차감</button>' +
+                                '<button onclick="adminAdjustBalance(' + jsArg(u.id) + ', ' + jsArg(acc.id) + ', 1)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 rounded-lg text-xs font-bold">지급</button>' +
+                                '<button onclick="adminAdjustBalance(' + jsArg(u.id) + ', ' + jsArg(acc.id) + ', -1)" class="bg-red-500 hover:bg-red-600 text-white px-3 rounded-lg text-xs font-bold">차감</button>' +
                             '</div>'
                         ) : '') +
                         '<div class="flex gap-1.5 mb-1.5">' +
-                            '<button onclick="openAdminUserDetail(\'' + u.id + '\')" class="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">상세보기</button>' +
+                            '<button onclick="openAdminUserDetail(' + jsArg(u.id) + ')" class="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">상세보기</button>' +
                         '</div>' +
                         '<div class="flex gap-1.5">' +
                             (acc ?
-                                '<button onclick="adminToggleAccountFreeze(\'' + acc.id + '\', ' + (!acc.is_frozen) + ')" class="flex-1 ' + (acc.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (acc.is_frozen ? '계좌 정지 해제' : '계좌 정지') + '</button>'
+                                '<button onclick="adminToggleAccountFreeze(' + jsArg(acc.id) + ', ' + (!acc.is_frozen) + ')" class="flex-1 ' + (acc.is_frozen ? 'bg-zinc-700 hover:bg-zinc-800' : 'bg-amber-500 hover:bg-amber-600') + ' text-white py-1.5 rounded-lg text-xs font-bold">' + (acc.is_frozen ? '계좌 정지 해제' : '계좌 정지') + '</button>'
                                 : '<button disabled class="flex-1 bg-zinc-200 text-zinc-400 py-1.5 rounded-lg text-xs font-bold cursor-not-allowed">계좌 없음</button>') +
-                            '<button onclick="adminDeleteUser(\'' + u.id + '\', \'' + escapeHtml(u.alias).replace(/'/g, "\\'") + '\')" class="flex-1 bg-zinc-900 hover:bg-black text-white py-1.5 rounded-lg text-xs font-bold">계정 강제 삭제</button>' +
+                            '<button onclick="adminDeleteUser(' + jsArg(u.id) + ', ' + jsArg(u.alias) + ')" class="flex-1 bg-zinc-900 hover:bg-black text-white py-1.5 rounded-lg text-xs font-bold">계정 강제 삭제</button>' +
                         '</div>' +
                     '</div>';
                 }).join('');
@@ -4756,7 +4781,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     const statusClass = m.status === 'pending' ? 'bg-amber-100 text-amber-700' : (m.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700');
                     return '<div class="border border-zinc-200 rounded-xl p-3">' +
                         '<div class="flex justify-between items-center mb-2">' +
-                            '<div class="cursor-pointer" onclick="openAdminMerchantDetail(\'' + m.id + '\')">' +
+                            '<div class="cursor-pointer" onclick="openAdminMerchantDetail(' + jsArg(m.id) + ')">' +
                                 '<div class="flex items-center gap-1.5">' +
                                     '<div class="text-xs font-bold text-zinc-900 hover:underline">' + escapeHtml(m.name) + '</div>' +
                                     '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ' + statusClass + '">' + statusLabel + '</span>' +
@@ -4768,7 +4793,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                                 '<div>미정산 ' + formatNumber(m.unsettled_balance || 0) + '원</div>' +
                             '</div>' +
                         '</div>' +
-                        '<button onclick="openAdminMerchantDetail(\'' + m.id + '\')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">상세보기</button>' +
+                        '<button onclick="openAdminMerchantDetail(' + jsArg(m.id) + ')" class="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 py-1.5 rounded-lg text-xs font-bold">상세보기</button>' +
                     '</div>';
                 }).join('');
             } catch (err) {
@@ -5084,10 +5109,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     '<div class="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-100">' +
                         '<div class="text-[10px] text-zinc-500">다음 이체일 <span class="font-bold text-zinc-700">' + escapeHtml(atPrettyDate(row.next_run_date)) + '</span></div>' +
                         '<div class="flex gap-1.5">' +
-                            '<button onclick="toggleAutoTransfer(\'' + row.id + '\')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold ' + (paused ? 'bg-zinc-900 text-white hover:bg-black' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200') + '">' +
+                            '<button onclick="toggleAutoTransfer(' + jsArg(row.id) + ')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold ' + (paused ? 'bg-zinc-900 text-white hover:bg-black' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200') + '">' +
                                 (paused ? '재개' : '일시정지') +
                             '</button>' +
-                            '<button onclick="deleteAutoTransfer(\'' + row.id + '\')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-50 text-red-600 hover:bg-red-100">해지</button>' +
+                            '<button onclick="deleteAutoTransfer(' + jsArg(row.id) + ')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-red-50 text-red-600 hover:bg-red-100">해지</button>' +
                         '</div>' +
                     '</div>' +
                 '</div>';
@@ -5588,6 +5613,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const discord = document.getElementById('settings-input-discord').value.trim();
 
             if (!alias) { showToast('가명을 입력해 주세요.'); return; }
+            if (!isValidAlias(alias)) { showToast('가명은 20자 이하로, 특수문자(< > \" \' ` \\) 없이 입력해 주세요.'); return; }
             if (!discord) { showToast('디스코드 ID를 입력해 주세요.'); return; }
             if (alias === user.alias && discord === user.discord) return;
 
