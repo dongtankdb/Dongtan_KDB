@@ -477,8 +477,8 @@ html::-webkit-scrollbar, body::-webkit-scrollbar, #app-container::-webkit-scroll
 }
 
 
-.roll-number { display: inline-flex; align-items: flex-start; font-variant-numeric: tabular-nums; vertical-align: bottom; }
-.roll-digit { display: inline-block; height: 1.3em; line-height: 1.3em; overflow: hidden; }
+.roll-number { display: inline-block; vertical-align: bottom; height: 1.3em; line-height: 1.3em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.roll-digit { display: inline-block; vertical-align: top; height: 1.3em; line-height: 1.3em; overflow: hidden; }
 .roll-strip { display: flex; flex-direction: column; will-change: transform; }
 .roll-item { display: block; height: 1.3em; line-height: 1.3em; text-align: center; }
-.roll-static { display: inline-block; height: 1.3em; line-height: 1.3em; }
+.roll-static { display: inline-block; vertical-align: top; height: 1.3em; line-height: 1.3em; }
