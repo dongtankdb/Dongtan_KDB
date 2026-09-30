@@ -754,56 +754,93 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             const dir = newValue > oldValue ? 1 : -1;
-            const oldDigits = formatNumber(oldValue).replace(/[^0-9]/g, '');
-            const chars = newStr.split('');
-            const totalDigits = chars.filter(c => /\d/.test(c)).length;
+            const oldStr = formatNumber(oldValue);
+            const oldDigits = oldStr.replace(/\D/g, '');
+            const newDigits = newStr.replace(/\D/g, '');
+            const shorter = Math.min(oldDigits.length, newDigits.length);
+            const lengthChanged = oldDigits.length !== newDigits.length;
+            const layoutStr = oldDigits.length >= newDigits.length ? oldStr : newStr;
+            const layoutDigits = layoutStr.replace(/\D/g, '').length;
             const RUNS = 3;
+            const TOTAL = 1 + 10 * RUNS;
+            const idx = (d, run) => 1 + run * 10 + d;
+            const pct = pos => -(pos / TOTAL) * 100;
+            const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
             el.textContent = '';
 
             const moves = [];
-            let digitIndex = 0;
+            const widthMoves = [];
+            let seen = 0;
 
-            chars.forEach(ch => {
+            layoutStr.split('').forEach(ch => {
                 if (!/\d/.test(ch)) {
                     const sep = document.createElement('span');
                     sep.className = 'roll-static';
                     sep.textContent = ch;
                     el.appendChild(sep);
+                    if (ch === ',' && lengthChanged && (layoutDigits - seen) >= shorter) {
+                        widthMoves.push({ node: sep, grow: newDigits.length > oldDigits.length });
+                    }
                     return;
                 }
 
-                const fromRight = totalDigits - 1 - digitIndex;
-                const oldIdx = oldDigits.length - 1 - fromRight;
-                const oldD = oldIdx >= 0 ? parseInt(oldDigits[oldIdx], 10) : 0;
-                const target = parseInt(ch, 10);
-                const startPos = 10 + oldD;
-                const steps = dir > 0 ? ((target - oldD + 10) % 10) : -((oldD - target + 10) % 10);
-                const endPos = startPos + steps;
+                const fromRight = layoutDigits - 1 - seen;
+                seen++;
+
+                const oldD = fromRight < oldDigits.length ? parseInt(oldDigits[oldDigits.length - 1 - fromRight], 10) : null;
+                const target = fromRight < newDigits.length ? parseInt(newDigits[newDigits.length - 1 - fromRight], 10) : null;
+
+                let startPos;
+                let endPos;
+                if (oldD !== null && target !== null) {
+                    startPos = idx(oldD, 1);
+                    const steps = dir > 0 ? ((target - oldD + 10) % 10) : -((oldD - target + 10) % 10);
+                    endPos = startPos + steps;
+                } else if (oldD !== null) {
+                    startPos = idx(oldD, 0);
+                    endPos = 0;
+                } else {
+                    startPos = 0;
+                    endPos = idx(target, 0);
+                }
 
                 const col = document.createElement('span');
                 col.className = 'roll-digit';
                 const strip = document.createElement('span');
                 strip.className = 'roll-strip';
-                for (let n = 0; n < 10 * RUNS; n++) {
+                for (let n = 0; n < TOTAL; n++) {
                     const item = document.createElement('span');
                     item.className = 'roll-item';
-                    item.textContent = String(n % 10);
+                    item.textContent = n === 0 ? '' : String((n - 1) % 10);
                     strip.appendChild(item);
                 }
-                strip.style.transform = 'translateY(' + (-(startPos / (10 * RUNS)) * 100) + '%)';
+                strip.style.transform = 'translateY(' + pct(startPos) + '%)';
                 col.appendChild(strip);
                 el.appendChild(col);
 
                 if (endPos !== startPos) moves.push({ strip, endPos });
-                digitIndex++;
+                if (oldD === null || target === null) {
+                    widthMoves.push({ node: col, grow: oldD === null });
+                }
+            });
+
+            widthMoves.forEach(w => {
+                w.width = w.node.getBoundingClientRect().width;
+                w.node.style.overflow = 'hidden';
+                w.node.style.width = (w.grow ? 0 : w.width) + 'px';
             });
 
             void el.offsetWidth;
 
             moves.forEach((m, order) => {
-                m.strip.style.transition = 'transform ' + duration + 'ms cubic-bezier(0.22, 1, 0.36, 1) ' + (order * 45) + 'ms';
-                m.strip.style.transform = 'translateY(' + (-(m.endPos / (10 * RUNS)) * 100) + '%)';
+                m.strip.style.transition = 'transform ' + duration + 'ms ' + easing + ' ' + (order * 45) + 'ms';
+                m.strip.style.transform = 'translateY(' + pct(m.endPos) + '%)';
+            });
+
+            widthMoves.forEach(w => {
+                w.node.style.transition = 'width ' + duration + 'ms ' + easing;
+                w.node.style.width = (w.grow ? w.width : 0) + 'px';
             });
 
             setTimeout(() => {
