@@ -125,15 +125,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const user = getCurrentUser();
 
                 if (user) {
-                    await sbClient.from('users').upsert([{
-                        id: user.id,
+                    await sbClient.from('users').update({
                         alias: user.alias,
                         discord: user.discord,
-                        uid: user.uid,
                         current_account_id: user.currentAccountId || null,
                         purchased_items: user.purchasedItems || [],
                         discord_numeric_id: user.discordNumericId || null
-                    }]);
+                    }).eq('id', user.id);
 
                     const accountRows = (user.accounts || []).map(acc => ({
                         id: acc.id,
@@ -141,7 +139,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         name: acc.name,
                         account_no: acc.accountNo
                     }));
-                    if (accountRows.length) await sbClient.from('accounts').upsert(accountRows);
+                    if (accountRows.length) await sbClient.from('accounts').upsert(accountRows, { onConflict: 'id', ignoreDuplicates: true });
+
+                    const savedNames = state.savedAccountNames || (state.savedAccountNames = {});
+                    for (const acc of (user.accounts || [])) {
+                        if (savedNames[acc.id] === acc.name) continue;
+                        const { error: nameErr } = await sbClient.from('accounts').update({ name: acc.name }).eq('id', acc.id).eq('user_id', user.id);
+                        if (!nameErr) savedNames[acc.id] = acc.name;
+                    }
 
                     const txRows = (user.transactions || []).map(tx => ({
                         id: tx.id,
@@ -153,7 +158,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         type: tx.type,
                         date_label: tx.date
                     })).filter(t => t.account_id);
-                    if (txRows.length) await sbClient.from('transactions').upsert(txRows);
+                    if (txRows.length) await sbClient.from('transactions').upsert(txRows, { onConflict: 'id', ignoreDuplicates: true });
                 }
 
                 const merchantIdSet = new Set(extraMerchantIds || []);
