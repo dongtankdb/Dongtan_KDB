@@ -3623,7 +3623,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         let payCodeAutoRefreshTimer = null;
         let isGeneratingPayCode = false;
 
-        async function generateNewCode() {
+        async function generateNewCode(notify) {
             if (isGeneratingPayCode) return;
             isGeneratingPayCode = true;
 
@@ -3654,7 +3654,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (display) {
                     display.innerText = newCode.slice(0, 3) + ' ' + newCode.slice(3);
                 }
-                showToast('새로운 보안 결제 코드가 생성되었습니다.');
+                if (notify === true) showToast('새로운 보안 결제 코드가 생성되었습니다.');
             } catch (err) {
                 console.error('결제 코드 생성 오류:', err);
                 showToast('결제 코드 생성 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -3667,8 +3667,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function startPayCodeAutoRefresh() {
             stopPayCodeAutoRefresh();
-            generateNewCode();
-            payCodeAutoRefreshTimer = setInterval(generateNewCode, 30000);
+            generateNewCode(false);
+            payCodeAutoRefreshTimer = setInterval(() => generateNewCode(false), 30000);
         }
 
         function stopPayCodeAutoRefresh() {
