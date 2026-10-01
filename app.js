@@ -85,6 +85,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             users: [],
             hasUsers: false,
             currentUserId: localStorage.getItem(STORAGE_KEY_SESSION) || null,
+            sessionToken: null,
+            merchantToken: null,
             selectedLoginUserId: null,
             pendingVerifyUser: null,
             verifiedLoginUserId: null,
@@ -124,77 +126,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             try {
                 const user = getCurrentUser();
 
-                if (user) {
-                    await sbClient.from('users').update({
-                        alias: user.alias,
-                        discord: user.discord,
-                        current_account_id: user.currentAccountId || null,
-                        purchased_items: user.purchasedItems || [],
-                        discord_numeric_id: user.discordNumericId || null
-                    }).eq('id', user.id);
-
-                    const accountRows = (user.accounts || []).map(acc => ({
-                        id: acc.id,
-                        user_id: user.id,
-                        name: acc.name,
-                        account_no: acc.accountNo
-                    }));
-                    if (accountRows.length) await sbClient.from('accounts').upsert(accountRows, { onConflict: 'id', ignoreDuplicates: true });
-
-                    const savedNames = state.savedAccountNames || (state.savedAccountNames = {});
-                    for (const acc of (user.accounts || [])) {
-                        if (savedNames[acc.id] === acc.name) continue;
-                        const { error: nameErr } = await sbClient.from('accounts').update({ name: acc.name }).eq('id', acc.id).eq('user_id', user.id);
-                        if (!nameErr) savedNames[acc.id] = acc.name;
-                    }
-
-                    const txRows = (user.transactions || []).map(tx => ({
-                        id: tx.id,
-                        account_id: tx.accountId || (user.accounts && user.accounts[0] ? user.accounts[0].id : null),
-                        title: tx.title,
-                        counterparty_name: tx.counterparty || null,
-                        memo: tx.memo || null,
-                        amount: tx.amount,
-                        type: tx.type,
-                        date_label: tx.date
-                    })).filter(t => t.account_id);
-                    if (txRows.length) await sbClient.from('transactions').upsert(txRows, { onConflict: 'id', ignoreDuplicates: true });
-                }
-
-                const merchantIdSet = new Set(extraMerchantIds || []);
-                const currentMerchant = getCurrentMerchant();
-                if (currentMerchant) merchantIdSet.add(currentMerchant.id);
-
-                if (merchantIdSet.size) {
-                    const merchantsToSync = state.merchants.filter(m => merchantIdSet.has(m.id));
-
-                    const merchantRows = merchantsToSync.map(m => ({
-                        id: m.id,
-                        name: m.name,
-                        category: m.category,
-                        biz_no: m.bizNo,
-                        account_no: m.accountNo,
-                        unsettled_balance: m.unsettledBalance || 0,
-                        total_sales: m.totalSales || 0,
-                        status: m.status || 'approved'
-                    }));
-                    if (merchantRows.length) await sbClient.from('merchants').upsert(merchantRows);
-
-                    const salesRows = [];
-                    merchantsToSync.forEach(m => {
-                        (m.salesHistory || []).forEach(s => {
-                            salesRows.push({
-                                id: s.id,
-                                merchant_id: m.id,
-                                title: s.title,
-                                amount: s.amount,
-                                fee_amount: s.feeAmount || 0,
-                                settled: !!s.settled,
-                                date_label: s.date
-                            });
-                        });
+                if (user && state.sessionToken) {
+                    const { error: profileErr } = await authRpc('app_update_profile', {
+                        p_current_account_id: user.currentAccountId || null,
+                        p_purchased_items: user.purchasedItems || [],
+                        p_discord_numeric_id: user.discordNumericId ? String(user.discordNumericId) : null
                     });
-                    if (salesRows.length) await sbClient.from('merchant_sales').upsert(salesRows);
+                    if (profileErr && !isInvalidSessionError(profileErr)) console.error('프로필 저장 오류:', profileErr);
                 }
             } catch (err) {
                 console.error('Supabase 저장 오류:', err);
@@ -429,6 +367,49 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const user = getCurrentUser();
             if (!user) return null;
             return user.accounts.find(acc => acc.id === user.currentAccountId) || user.accounts[0] || null;
+        }
+
+        function isInvalidSessionError(err) {
+            return !!err && String(err.message || '').includes('invalid_session');
+        }
+
+        function handleSessionExpired() {
+            if (!getCurrentUser()) return;
+            showToast('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
+            logout();
+        }
+
+        function handleMerchantSessionExpired() {
+            if (!getCurrentMerchant()) return;
+            showToast('가맹점 세션이 만료되었습니다. 다시 로그인해 주세요.');
+            logoutMerchant();
+        }
+
+        async function authRpc(name, args) {
+            const res = await sbClient.rpc(name, Object.assign({ p_token: state.sessionToken }, args || {}));
+            if (res && res.error && isInvalidSessionError(res.error)) handleSessionExpired();
+            return res;
+        }
+
+        async function merchantRpc(name, args) {
+            const res = await sbClient.rpc(name, Object.assign({ p_token: state.merchantToken }, args || {}));
+            if (res && res.error && isInvalidSessionError(res.error)) handleMerchantSessionExpired();
+            return res;
+        }
+
+        async function refreshMerchantFromServer(merchantId) {
+            try {
+                const { data } = await sbClient.from('merchants_public').select('*').eq('id', merchantId).single();
+                const mch = state.merchants.find(m => m.id === merchantId);
+                if (!data || !mch) return;
+                mch.unsettledBalance = data.unsettled_balance || 0;
+                mch.totalSales = data.total_sales || 0;
+                await loadMerchantSales(mch);
+                const current = getCurrentMerchant();
+                if (current && current.id === merchantId) renderMerchantDashboard();
+            } catch (err) {
+                console.error('가맹점 정보 갱신 오류:', err);
+            }
         }
 
         function genId(prefix) {
@@ -676,62 +657,42 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             try {
 
-                const { data: updatedReq, error: updErr } = await sbClient
-                    .from('payment_requests')
-                    .update({ status: 'approved' })
-                    .eq('id', req.id)
-                    .eq('status', 'pending')
-                    .select();
-
-                if (updErr || !updatedReq || updatedReq.length === 0) {
-                    showToast('이미 만료되었거나 처리된 결제 요청입니다.');
-                    return;
-                }
-
-                let debitResult;
-                try {
-                    const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
-                        p_account_id: activeAcc.id,
-                        p_delta: -req.amount
-                    });
-                    if (rpcErr) {
-                        console.error('결제 잔액 차감 오류:', rpcErr);
-                        showToast('결제 처리 중 오류가 발생했습니다.');
-                        return;
-                    }
-                    debitResult = rpcData && rpcData[0];
-                } catch (err) {
-                    console.error('결제 잔액 차감 오류:', err);
+                const { data, error } = await authRpc('app_approve_payment', { p_request_id: req.id });
+                if (error) {
+                    console.error('결제 승인 오류:', error);
                     showToast('결제 처리 중 오류가 발생했습니다.');
                     return;
                 }
 
-                if (!debitResult || !debitResult.ok) {
-                    await sbClient.from('payment_requests').update({ status: 'rejected' }).eq('id', req.id);
+                const result = Array.isArray(data) ? data[0] : data;
+                if (!result || !result.ok) {
                     const reasonMsg = {
                         insufficient_balance: '계좌 잔액이 부족하여 결제가 취소되었습니다.',
-                        frozen: '정지된 계좌라 결제할 수 없습니다.'
-                    }[debitResult && debitResult.reason] || '결제를 처리할 수 없습니다.';
+                        frozen: '정지된 계좌라 결제할 수 없습니다.',
+                        expired: '이미 만료된 결제 요청입니다.',
+                        already_processed: '이미 처리된 결제 요청입니다.',
+                        not_found: '결제 요청을 찾을 수 없습니다.',
+                        merchant_unavailable: '결제를 처리할 수 없는 가맹점입니다.'
+                    }[result && result.reason] || '결제를 처리할 수 없습니다.';
                     showToast(reasonMsg);
                     return;
                 }
 
-                activeAcc.balance = debitResult.new_balance;
-
-                user.transactions.unshift({
-                    id: genId('tx'),
-                    accountId: activeAcc.id,
-                    title: req.merchant_name + ' 결제',
-                    counterparty: req.merchant_name,
-                    date: '방금 전',
-                    createdAt: new Date().toISOString(),
-                    amount: -req.amount,
-                    type: 'pay'
-                });
-                saveAppData();
+                activeAcc.balance = result.new_balance;
+                if (!user.transactions.some(t => t.id === result.tx_id)) {
+                    user.transactions.unshift({
+                        id: result.tx_id || genId('tx'),
+                        accountId: activeAcc.id,
+                        title: req.merchant_name + ' 결제',
+                        counterparty: req.merchant_name,
+                        date: '방금 전',
+                        createdAt: new Date().toISOString(),
+                        amount: -req.amount,
+                        type: 'pay'
+                    });
+                }
                 renderApp();
                 showToast(formatNumber(req.amount) + '원 결제를 승인했습니다.');
-                notifyUser(user.id, req.merchant_name + ' 결제 완료', formatNumber(req.amount) + '원이 결제되었습니다.');
             } catch (err) {
                 console.error('결제 승인 처리 오류:', err);
                 showToast('결제 승인 처리 중 오류가 발생했습니다.');
@@ -744,7 +705,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             hidePaymentRequestBanner();
 
             try {
-                await sbClient.from('payment_requests').update({ status: 'rejected' }).eq('id', reqId).eq('status', 'pending');
+                await authRpc('app_reject_payment', { p_request_id: reqId });
                 showToast('결제 요청을 거절했습니다.');
             } catch (err) {
                 console.error('결제 거절 처리 오류:', err);
@@ -1597,26 +1558,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const enteredPin = state.enteredPin;
             if (!/^\d{4}$/.test(enteredPin)) return;
 
+            let loginResult;
             try {
-                const { data: lockData, error: lockError } = await sbClient.rpc('get_login_lock_status', {
-                    p_user_id: targetUserId
-                });
-                const lockRow = Array.isArray(lockData) ? lockData[0] : lockData;
-                if (!lockError && lockRow && lockRow.locked) {
-                    state.enteredPin = '';
-                    updatePinDots();
-                    const mins = Math.max(1, Math.ceil((lockRow.seconds_remaining || 0) / 60));
-                    showToast('로그인 5회 실패로 잠겨 있습니다. ' + mins + '분 후 다시 시도해 주세요.');
-                    return;
-                }
-            } catch (err) {
-                console.error('로그인 잠금 상태 확인 오류:', err);
-            }
-
-            let row;
-            try {
-
-                const { data, error } = await sbClient.rpc('verify_user_login', {
+                const { data, error } = await sbClient.rpc('app_login', {
                     p_user_id: targetUserId,
                     p_pin: enteredPin
                 });
@@ -1625,55 +1569,32 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     showToast('로그인 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                row = pickRpcRow(data);
+                loginResult = data;
             } catch (err) {
                 console.error('로그인 확인 오류:', err);
                 showToast('로그인 확인 중 오류가 발생했습니다.');
                 return;
             }
 
-            if (!row) {
+            if (!loginResult || !loginResult.ok) {
                 state.enteredPin = '';
                 updatePinDots();
-
-                try {
-                    const { data: securityData, error: securityError } = await sbClient.rpc('register_failed_login', {
-                        p_user_id: targetUserId
-                    });
-
-                    if (securityError) {
-                        console.error('로그인 실패 횟수 기록 오류:', securityError);
-                        showToast('PIN 번호가 일치하지 않습니다.');
-                        return;
-                    }
-
-                    const security = Array.isArray(securityData) ? securityData[0] : securityData;
-                    const locked = !!security?.locked;
-
-                    if (locked) {
-                        showToast('로그인 5회 실패로 5분 동안 로그인 시도가 제한됩니다.');
+                if (loginResult && loginResult.reason === 'locked') {
+                    const secs = Number(loginResult.seconds_remaining) || 0;
+                    if (secs > 0) {
+                        const mins = Math.max(1, Math.ceil(secs / 60));
+                        showToast('로그인 5회 실패로 잠겨 있습니다. ' + mins + '분 후 다시 시도해 주세요.');
                     } else {
-                        showToast('PIN 번호가 일치하지 않습니다.');
+                        showToast('로그인 5회 실패로 5분 동안 로그인 시도가 제한됩니다.');
                     }
-                } catch (err) {
-                    console.error('로그인 실패 처리 오류:', err);
+                } else {
                     showToast('PIN 번호가 일치하지 않습니다.');
                 }
                 return;
             }
 
-            try {
-                const { error: resetError } = await sbClient.rpc('reset_login_attempts', {
-                    p_user_id: targetUserId
-                });
-                if (resetError) {
-                    console.error('로그인 실패 횟수 초기화 오류:', resetError);
-                    showToast('로그인 보안 상태 초기화에 실패했습니다.');
-                }
-            } catch (err) {
-                console.error('로그인 실패 횟수 초기화 오류:', err);
-                showToast('로그인 보안 상태 초기화에 실패했습니다.');
-            }
+            const row = loginResult.user;
+            state.sessionToken = loginResult.token;
 
             let localUser = state.users.find(u => u.id === row.id);
             if (!localUser) {
@@ -1740,9 +1661,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const signupBtn = document.getElementById('signup-submit-btn');
             if (signupBtn) signupBtn.disabled = true;
 
-            let newUserId;
+            let newUserId, newAccountId, newAccNo;
             try {
-                const { data, error } = await sbClient.rpc('signup_user', {
+                const { data, error } = await sbClient.rpc('app_signup', {
                     p_alias: alias, p_discord: discord, p_uid: uid, p_pin: pin
                 });
                 if (error) {
@@ -1751,6 +1672,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         showToast('이미 가입된 디스코드 ID입니다.');
                     } else if (msg.includes('uid_taken')) {
                         showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
+                    } else if (msg.includes('invalid_alias')) {
+                        showToast('가명은 20자 이하로, 특수문자(< > \" \' ` \\) 없이 입력해 주세요.');
                     } else {
                         console.error('회원가입 오류:', error);
                         showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -1758,7 +1681,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     if (signupBtn) signupBtn.disabled = false;
                     return;
                 }
-                newUserId = data;
+                if (!data || !data.ok || !data.account) throw new Error('signup_failed');
+                newUserId = data.user_id;
+                newAccountId = data.account.id;
+                newAccNo = data.account.account_no;
+                state.sessionToken = data.token;
             } catch (err) {
                 console.error('회원가입 오류:', err);
                 showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -1767,26 +1694,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             if (signupBtn) signupBtn.disabled = false;
-
-            let newAccountId, newAccNo;
-            try {
-                const { data: accData, error: accErr } = await sbClient.rpc('create_account', {
-                    p_user_id: newUserId,
-                    p_name: 'KDB페이 주계좌',
-                    p_initial_balance: 100000
-                });
-                if (accErr || !accData || !accData[0]) {
-                    console.error('계좌 생성 오류:', accErr);
-                    showToast('계좌 생성 중 오류가 발생했습니다. 관리자에게 문의해 주세요.');
-                    return;
-                }
-                newAccountId = accData[0].id;
-                newAccNo = accData[0].account_no;
-            } catch (err) {
-                console.error('계좌 생성 오류:', err);
-                showToast('계좌 생성 중 오류가 발생했습니다. 관리자에게 문의해 주세요.');
-                return;
-            }
 
             const newUser = {
                 id: newUserId,
@@ -1823,6 +1730,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function logout() {
+            const tokenToRevoke = state.sessionToken;
+            state.sessionToken = null;
+            if (tokenToRevoke) sbClient.rpc('app_logout', { p_token: tokenToRevoke }).then(() => {}, () => {});
             state.currentUserId = null;
             state.enteredPin = '';
             saveAppData();
@@ -2469,10 +2379,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let result;
             try {
-                const { data, error } = await sbClient.rpc('transfer_funds', {
+                const { data, error } = await authRpc('app_transfer', {
                     p_from_account: activeAcc.id,
                     p_to_account: match.accountId,
-                    p_amount: amount
+                    p_amount: amount,
+                    p_memo: memo || null
                 });
                 if (error) {
                     console.error('이체 처리 오류:', error);
@@ -2510,45 +2421,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             activeAcc.balance = result.from_balance;
-            user.transactions.unshift({
-                id: genId('tx'),
-                accountId: activeAcc.id,
-                title: match.alias + ' 님에게 이체',
-                counterparty: match.alias,
-                memo: memo || '',
-                date: '방금 전',
+            if (!user.transactions.some(t => t.id === result.tx_id)) {
+                user.transactions.unshift({
+                    id: result.tx_id || genId('tx'),
+                    accountId: activeAcc.id,
+                    title: match.alias + ' 님에게 이체',
+                    counterparty: match.alias,
+                    memo: memo || '',
+                    date: '방금 전',
                     createdAt: new Date().toISOString(),
-                amount: -amount,
-                type: 'transfer'
-            });
-            saveAppData();
-
-            try {
-                await sbClient.from('transactions').insert({
-                    id: genId('tx'),
-                    account_id: match.accountId,
-                    title: user.alias + ' 님으로부터 입금',
-                    counterparty_name: user.alias,
-                    memo: memo || null,
-                    amount: amount,
-                    type: 'deposit',
-                    date_label: '방금 전'
+                    amount: -amount,
+                    type: 'transfer'
                 });
-                notifyUser(match.userId, user.alias + '님으로부터 입금', formatNumber(amount) + '원이 입금되었습니다.' + (memo ? ' "' + memo + '"' : ''));
-                notifyUser(user.id, match.alias + '님에게 이체 완료', formatNumber(amount) + '원을 이체했습니다.');
-
-                if (amount >= LARGE_TRANSFER_THRESHOLD) {
-                    sbClient.from('admin_alerts').insert({
-                        id: genId('alert'),
-                        type: 'large_transfer',
-                        message: user.alias + '님이 ' + match.alias + '님에게 ' + formatNumber(amount) + '원을 이체했습니다.',
-                        amount: amount,
-                        related_user_id: user.id,
-                        read: false
-                    }).then(() => {}, (err) => console.error('관리자 알림 생성 오류:', err));
-                }
-            } catch (err) {
-                console.error('수신자 입금 알림 반영 오류:', err);
             }
 
             state.pendingTransfer = null;
@@ -2589,10 +2473,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let newAccId, newAccNo;
             try {
-                const { data: accData, error: accErr } = await sbClient.rpc('create_account', {
-                    p_user_id: user.id,
-                    p_name: alias || type,
-                    p_initial_balance: 0
+                const { data: accData, error: accErr } = await authRpc('app_create_account', {
+                    p_name: alias || type
                 });
                 if (accErr || !accData || !accData[0]) {
                     console.error('계좌 생성 오류:', accErr);
@@ -2672,8 +2554,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             clearTimeout(_accountOrderTimer);
             _accountOrderTimer = setTimeout(async () => {
                 try {
-                    const { error } = await sbClient.rpc('set_account_order', {
-                        p_user_id: user.id,
+                    const { error } = await authRpc('app_set_account_order', {
                         p_account_ids: ids
                     });
                     if (error) {
@@ -2878,28 +2759,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let failReason = null;
             try {
-                const { data, error } = await sbClient.rpc('delete_account', {
-                    p_user_id: user.id,
-                    p_account_id: accId
-                });
-
+                const { data, error } = await authRpc('app_delete_account', { p_account_id: accId });
                 if (error) {
-                    const missing = error.code === 'PGRST202' || (error.message || '').includes('Could not find the function');
-                    if (!missing) {
-                        console.error('계좌 삭제 오류:', error);
-                        failReason = 'error';
-                    } else {
-                        const { data: removed, error: delErr } = await sbClient
-                            .from('accounts')
-                            .delete()
-                            .eq('id', accId)
-                            .eq('user_id', user.id)
-                            .select('id');
-                        if (delErr || !removed || removed.length === 0) {
-                            console.error('계좌 삭제 오류:', delErr);
-                            failReason = 'error';
-                        }
-                    }
+                    console.error('계좌 삭제 오류:', error);
+                    failReason = 'error';
                 } else {
                     const row = Array.isArray(data) ? data[0] : data;
                     if (!row || row.ok === false) failReason = (row && row.reason) || 'error';
@@ -3029,9 +2892,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let result;
             try {
-                const { data, error } = await sbClient.rpc('claim_daily_attendance', {
-                    p_user_id: user.id
-                });
+                const { data, error } = await authRpc('app_claim_attendance', {});
                 if (error) {
                     console.error('출석체크 처리 오류:', error);
                     showToast('출석체크 처리 중 오류가 발생했습니다.');
@@ -3258,8 +3119,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!targetMchId) return;
 
             let row;
+            let loginToken = null;
             try {
-                const { data, error } = await sbClient.rpc('verify_merchant_login', {
+                const { data, error } = await sbClient.rpc('app_merchant_login', {
                     p_merchant_id: targetMchId,
                     p_pin: state.enteredMerchantPin
                 });
@@ -3268,7 +3130,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     showToast('로그인 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                row = pickRpcRow(data);
+                row = data && data.ok ? data.merchant : null;
+                loginToken = data && data.token ? data.token : null;
             } catch (err) {
                 console.error('가맹점 로그인 확인 오류:', err);
                 showToast('로그인 확인 중 오류가 발생했습니다.');
@@ -3308,8 +3171,16 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
+            if (!loginToken) {
+                showToast('가맹점 인증에 실패했습니다. 다시 시도해 주세요.');
+                state.enteredMerchantPin = '';
+                updateMerchantPinDots();
+                return;
+            }
+
             await loadMerchantSales(localMch);
 
+            state.merchantToken = loginToken;
             state.currentMerchantId = localMch.id;
             saveSession();
             showToast('\'' + localMch.name + '\' 가맹점으로 접속되었습니다.');
@@ -3339,7 +3210,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let newMchId;
             try {
-                const { data, error } = await sbClient.rpc('signup_merchant', {
+                const { data, error } = await sbClient.rpc('app_signup_merchant', {
                     p_name: name, p_category: category, p_biz_no: biz, p_account_no: acc, p_pin: pin
                 });
                 if (error) {
@@ -3353,7 +3224,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     if (mchSignupBtn) mchSignupBtn.disabled = false;
                     return;
                 }
-                newMchId = data;
+                newMchId = data && data.merchant_id;
+                if (!newMchId) throw new Error('merchant_signup_failed');
             } catch (err) {
                 console.error('가맹점 가입 오류:', err);
                 showToast('가맹점 정보를 확인하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -3375,22 +3247,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 status: 'pending'
             };
 
-            try {
-                const { error: syncErr } = await sbClient.from('merchants').upsert([{
-                    id: newMerchant.id,
-                    name: newMerchant.name,
-                    category: newMerchant.category,
-                    biz_no: newMerchant.bizNo,
-                    account_no: newMerchant.accountNo,
-                    unsettled_balance: 0,
-                    total_sales: 0,
-                    status: 'pending'
-                }]);
-                if (syncErr) console.error('가맹점 신청 저장 오류:', syncErr);
-            } catch (err) {
-                console.error('가맹점 신청 저장 오류:', err);
-            }
-
             if (nameInput) nameInput.value = '';
             if (bizInput) bizInput.value = '';
             if (accInput) accInput.value = '';
@@ -3401,6 +3257,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function logoutMerchant() {
+            const merchantTokenToRevoke = state.merchantToken;
+            state.merchantToken = null;
+            if (merchantTokenToRevoke) sbClient.rpc('app_logout', { p_token: merchantTokenToRevoke }).then(() => {}, () => {});
             state.currentMerchantId = null;
             state.enteredMerchantPin = '';
             saveSession();
@@ -3581,7 +3440,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            state.pendingPosPayment = { codeRow, customerUser, customerAcc, amount: amt };
+            state.pendingPosPayment = { codeRow, customerUser, customerAcc, amount: amt, code: code };
 
             document.getElementById('pos-confirm-customer-name').innerText = customerUser.alias;
             document.getElementById('pos-confirm-customer-acc').innerText = maskAccountNo(customerAcc.account_no);
@@ -3607,22 +3466,24 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 confirmBtn.innerText = '요청 전송 중...';
             }
 
-            const requestId = genId('preq');
-            const expiresAt = new Date(Date.now() + 60 * 1000).toISOString();
-
+            let requestId;
             try {
-                await sbClient.from('payment_codes').update({ used: true }).eq('id', codeRow.id);
-
-                await sbClient.from('payment_requests').insert({
-                    id: requestId,
-                    merchant_id: mch.id,
-                    merchant_name: mch.name,
-                    user_id: customerUser.id,
-                    account_id: customerAcc.id,
-                    amount: amt,
-                    status: 'pending',
-                    expires_at: expiresAt
+                const { data: reqData, error: reqErr } = await merchantRpc('app_create_payment_request', {
+                    p_code: pending.code,
+                    p_amount: amt
                 });
+                if (reqErr || !reqData || !reqData.ok) {
+                    const reason = reqData && reqData.reason;
+                    showToast(reason === 'invalid_code'
+                        ? '유효하지 않거나 만료된 결제 코드입니다.'
+                        : reason === 'frozen'
+                            ? '고객의 계좌가 정지되어 결제할 수 없습니다.'
+                            : '결제 요청을 보낼 수 없습니다.');
+                    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerText = '결제 확정'; }
+                    closeModal('modal-pos-confirm');
+                    return;
+                }
+                requestId = reqData.request_id;
             } catch (err) {
                 console.error('결제 요청 생성 오류:', err);
                 showToast('결제 요청 전송 중 오류가 발생했습니다.');
@@ -3686,24 +3547,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             if (row.status === 'approved') {
                 cleanupMerchantWaiting();
-                const mch = getCurrentMerchant();
-                if (mch && mch.id === ctx.merchantId) {
-                    const feeAmount = Math.round(ctx.amount * PAYMENT_FEE_RATE);
-                    const netAmount = ctx.amount - feeAmount;
-                    mch.unsettledBalance += netAmount;
-                    mch.totalSales += ctx.amount;
-                    mch.salesHistory.unshift({
-                        id: genId('s'),
-                        title: ctx.salesTitle,
-                        amount: ctx.amount,
-                        feeAmount: feeAmount,
-                        date: '방금 전',
-                    createdAt: new Date().toISOString(),
-                        settled: false
-                    });
-                    saveAppData();
-                    renderMerchantDashboard();
-                }
+                refreshMerchantFromServer(ctx.merchantId);
                 showToast(ctx.customerName + '님이 ' + formatNumber(ctx.amount) + '원 결제 요청을 승인했습니다.');
             } else if (row.status === 'rejected') {
                 cleanupMerchantWaiting();
@@ -3732,69 +3576,37 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 settleBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 정산 처리 중...';
             }
 
-            let targetAcc;
+            const restoreSettleBtn = () => {
+                if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
+            };
+
+            let settleResult;
             try {
-                const { data: accData, error: accErr } = await sbClient.rpc('find_account_by_number', {
-                    p_query: mch.accountNo
-                });
-                if (accErr) {
-                    showToast('정산 계좌 조회 중 오류가 발생했습니다.');
-                    if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
-                    return;
-                }
-                targetAcc = accData && accData[0];
-            } catch (err) {
-                console.error('정산 계좌 조회 오류:', err);
-                showToast('정산 계좌 조회 중 오류가 발생했습니다.');
-                if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
-                return;
-            }
-
-            if (!targetAcc) {
-                showToast('등록된 정산 계좌(' + mch.accountNo + ')를 찾을 수 없어 정산할 수 없습니다.');
-                if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
-                return;
-            }
-
-            if (targetAcc.is_frozen) {
-                showToast('정산 계좌가 정지 상태라 정산할 수 없습니다. 관리자에게 문의해 주세요.');
-                if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
-                return;
-            }
-
-            try {
-                const { data: rpcData, error: rpcErr } = await sbClient.rpc('adjust_account_balance', {
-                    p_account_id: targetAcc.id,
-                    p_delta: amt
-                });
-                const adjustResult = rpcData && rpcData[0];
-                if (rpcErr || !adjustResult || !adjustResult.ok) {
-                    console.error('정산 잔액 반영 오류:', rpcErr || adjustResult);
-                    showToast('정산 계좌에 입금하지 못했습니다.');
-                    if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
-                    return;
-                }
-
-                await sbClient.from('transactions').insert({
-                    id: genId('tx'),
-                    account_id: targetAcc.id,
-                    title: mch.name + ' 정산입금',
-                    counterparty_name: mch.name,
-                    amount: amt,
-                    type: 'deposit',
-                    date_label: '방금 전'
-                });
-                notifyUser(targetAcc.user_id, mch.name + ' 정산입금', formatNumber(amt) + '원이 정산 입금되었습니다.');
-
-                await sbClient.from('merchant_sales').update({ settled: true }).eq('merchant_id', mch.id).eq('settled', false);
+                const { data, error } = await merchantRpc('app_settle_merchant', {});
+                if (error) throw error;
+                settleResult = data;
             } catch (err) {
                 console.error('정산 처리 오류:', err);
                 showToast('정산 처리 중 오류가 발생했습니다.');
-                if (settleBtn) { settleBtn.disabled = false; settleBtn.innerHTML = settleBtnOriginalHtml; }
+                restoreSettleBtn();
+                return;
+            }
+
+            if (!settleResult || !settleResult.ok) {
+                const msg = {
+                    nothing_to_settle: '정산할 미정산 매출 금액이 없습니다.',
+                    account_not_found: '등록된 정산 계좌(' + mch.accountNo + ')를 찾을 수 없어 정산할 수 없습니다.',
+                    frozen: '정산 계좌가 정지 상태라 정산할 수 없습니다. 관리자에게 문의해 주세요.'
+                }[settleResult && settleResult.reason] || '정산 처리를 완료하지 못했습니다.';
+                showToast(msg);
+                restoreSettleBtn();
                 return;
             }
 
             mch.unsettledBalance = 0;
+            mch.salesHistory.forEach(s => s.settled = true);
+
+            saveAppData();            mch.unsettledBalance = 0;
             mch.salesHistory.forEach(s => s.settled = true);
 
             saveAppData();
@@ -3829,25 +3641,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-            const codeId = genId('paycode');
-            const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
             try {
 
-                await sbClient.from('payment_codes').update({ used: true }).eq('user_id', user.id).eq('used', false);
-
-                sbClient.from('payment_codes').delete().lt('expires_at', new Date().toISOString())
-                    .then(() => {}, (err) => console.error('만료 코드 정리 오류:', err));
-
-                await sbClient.from('payment_codes').insert({
-                    id: codeId,
-                    code: newCode,
-                    user_id: user.id,
-                    account_id: activeAcc.id,
-                    used: false,
-                    expires_at: expiresAt
-                });
+                const { data: codeData, error: codeErr } = await authRpc('app_create_pay_code', { p_account_id: activeAcc.id });
+                if (codeErr || !codeData || !codeData.ok) throw (codeErr || new Error('code_failed'));
+                const newCode = codeData.code;
 
                 state.currentPayCode = newCode;
 
@@ -5407,10 +5206,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             };
 
             try {
-                const { data: rpcData, error: rpcErr } = await sbClient.rpc('transfer_funds', {
+                const { data: rpcData, error: rpcErr } = await authRpc('app_transfer', {
                     p_from_account: row.from_account_id,
                     p_to_account: row.to_account_id,
-                    p_amount: amount
+                    p_amount: amount,
+                    p_memo: row.memo || null,
+                    p_label: 'auto',
+                    p_date_label: dueDate
                 });
                 if (rpcErr) {
                     console.error('자동이체 실행 오류:', rpcErr);
@@ -5433,51 +5235,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return true;
                 }
 
-                await sbClient.from('transactions').insert([
-                    {
-                        id: genId('tx'),
-                        account_id: row.from_account_id,
-                        title: row.to_alias + ' 님에게 자동이체',
-                        counterparty_name: row.to_alias,
-                        memo: row.memo || null,
-                        amount: -amount,
-                        type: 'transfer',
-                        date_label: dueDate
-                    },
-                    {
-                        id: genId('tx'),
-                        account_id: row.to_account_id,
-                        title: user.alias + ' 님으로부터 자동이체 입금',
-                        counterparty_name: user.alias,
-                        memo: row.memo || null,
-                        amount: amount,
-                        type: 'deposit',
-                        date_label: dueDate
-                    }
-                ]);
-
                 await sbClient.from('auto_transfers')
                     .update({ last_result: '성공', fail_count: 0 })
                     .eq('id', row.id);
                 row.fail_count = 0;
                 row.last_result = '성공';
 
-                notifyUser(user.id, '자동이체 완료',
-                    row.to_alias + '님에게 ' + formatNumber(amount) + '원이 이체되었습니다.');
-                notifyUser(row.to_user_id, '자동이체 입금',
-                    user.alias + '님으로부터 ' + formatNumber(amount) + '원이 입금되었습니다.');
                 showToast('자동이체 ' + formatNumber(amount) + '원 → ' + row.to_alias);
-
-                if (amount >= LARGE_TRANSFER_THRESHOLD) {
-                    sbClient.from('admin_alerts').insert({
-                        id: genId('alert'),
-                        type: 'large_transfer',
-                        message: user.alias + '님이 ' + row.to_alias + '님에게 ' + formatNumber(amount) + '원을 자동이체했습니다.',
-                        amount: amount,
-                        related_user_id: user.id,
-                        read: false
-                    }).then(() => {}, (err) => console.error('관리자 알림 생성 오류:', err));
-                }
 
                 return true;
             } catch (err) {
@@ -5637,11 +5401,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     }
                 }
 
-                const { error: upErr } = await sbClient.from('users')
-                    .update({ alias: alias, discord: discord })
-                    .eq('id', user.id);
+                const { error: upErr } = await authRpc('app_update_profile', { p_alias: alias, p_discord: discord });
                 if (upErr) {
                     if (upErr.code === '23505') { showToast('이미 사용 중인 정보입니다.'); return; }
+                    if ((upErr.message || '').includes('invalid_alias')) { showToast('가명은 20자 이하로, 특수문자(< > \" \' ` \\) 없이 입력해 주세요.'); return; }
                     throw upErr;
                 }
 
@@ -5717,8 +5480,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (btn) { btn.disabled = true; btn.innerText = '변경 중...'; }
 
             try {
-                const { error } = await sbClient.rpc('change_user_pin', {
-                    p_user_id: user.id,
+                const { error } = await authRpc('app_change_pin', {
                     p_old_pin: oldPin,
                     p_new_pin: newPin
                 });
