@@ -4149,7 +4149,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     const isOwner = m.role === 'owner';
                     return '<div class="flex items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs">' +
                         '<div class="min-w-0"><div class="font-bold text-zinc-800 truncate">' + escapeHtml(m.alias || m.user_id) + '</div>' +
-                        '<div class="text-[10px] text-zinc-400 font-mono truncate">' + escapeHtml(m.user_id) + ' · ' + (isOwner ? '사장님' : '직원') + '</div></div>' +
+                        '<div class="text-[10px] text-zinc-400 font-mono truncate">' + escapeHtml(m.discord || m.user_id) + ' · ' + (isOwner ? '사장님' : '직원') + '</div></div>' +
                         (isOwner ? '<span class="text-[10px] font-bold text-zinc-400 shrink-0 ml-3">설립자</span>'
                                  : '<button onclick="removeMerchantMember(' + jsArg(m.user_id) + ')" class="shrink-0 ml-3 text-[11px] font-bold text-red-500 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg">권한 회수</button>') +
                     '</div>';
@@ -4163,13 +4163,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const btn = document.getElementById('mch-member-add-btn');
             const targetId = input ? input.value.trim() : '';
             if (!mch || state.currentMerchantRole !== 'owner') return;
-            if (!targetId) { showToast('권한을 부여할 사용자 ID를 입력해 주세요.'); return; }
+            if (!targetId) { showToast('권한을 부여할 디스코드 ID를 입력해 주세요.'); return; }
             if (btn) btn.disabled = true;
-            const { error } = await authRpc('app_merchant_add_member', { p_merchant_id: mch.id, p_member_user_id: targetId });
+            const { error } = await authRpc('app_merchant_add_member', { p_merchant_id: mch.id, p_member_discord: targetId });
             if (btn) btn.disabled = false;
             if (error) {
                 const msg = String(error.message || '');
-                if (msg.includes('user_not_found')) showToast('해당 ID의 사용자를 찾을 수 없습니다.');
+                if (msg.includes('user_not_found')) showToast('해당 디스코드 ID의 사용자를 찾을 수 없습니다.');
+                else if (msg.includes('ambiguous_discord')) showToast('같은 디스코드 ID가 여러 명이에요. 관리자에게 문의해 주세요.');
                 else if (msg.includes('already_member')) showToast('이미 권한이 부여된 사용자입니다.');
                 else if (msg.includes('forbidden')) showToast('사장님만 권한을 부여할 수 있습니다.');
                 else if (!isInvalidSessionError(error)) { console.error('권한 부여 오류:', error); showToast('권한 부여 중 오류가 발생했습니다.'); }
