@@ -1007,6 +1007,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         const TOAST_MAX_COUNT = 5;
 
         function showToast(message) {
+            if (typeof isOverlayOpen === 'function' && isOverlayOpen()) showOverlayToast(message);
             const container = document.getElementById('toast-container');
             if (!container) return;
 
@@ -2136,39 +2137,755 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             openModal('modal-transaction-history');
         }
 
+        const SHOP_CATEGORIES = ['디지털', '푸드', '패션', '생활', '기타'];
+        const SHOP_POINT_RATE = 0.5;
+
+        state.shopProducts = [];
+        state.shopLoaded = false;
+        state.shopLoading = false;
+        state.shopLoadedAt = 0;
+        state.shopQuery = '';
+        state.shopCategory = '전체';
+        state.shopBuy = null;
+        state.shopBuying = false;
+        state.portalSection = 'dashboard';
+        state.merchantProducts = [];
+        state.merchantOrders = [];
+        state.portalImage = '';
+        let shopSearchTimer = null;
+
+        function safeImageSrc(src) {
+            return typeof src === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(src) ? src : '';
+        }
+
+        function renderShopCategoryChips() {
+            const box = document.getElementById('shop-category-chips');
+            if (!box) return;
+            box.innerHTML = ['전체'].concat(SHOP_CATEGORIES).map(cat => {
+                const active = state.shopCategory === cat;
+                return '<button onclick="setShopCategory(' + jsArg(cat) + ')" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors ' +
+                    (active ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50') + '">' + escapeHtml(cat) + '</button>';
+            }).join('');
+        }
+
+        function setShopCategory(cat) {
+            state.shopCategory = cat;
+            renderShopCategoryChips();
+            loadShopProducts(true);
+        }
+
+        function onShopSearchInput() {
+            clearTimeout(shopSearchTimer);
+            shopSearchTimer = setTimeout(() => {
+                const input = document.getElementById('shop-search-input');
+                state.shopQuery = input ? input.value.trim() : '';
+                loadShopProducts(true);
+            }, 350);
+        }
+
+        async function loadShopProducts(force) {
+            if (!getCurrentUser() || !state.sessionToken) return;
+            if (state.shopLoading) return;
+            if (!force && state.shopLoaded && Date.now() - state.shopLoadedAt < 20000) return;
+
+            state.shopLoading = true;
+            renderShopGrid();
+            try {
+                const { data, error } = await authRpc('app_list_products', {
+                    p_query: state.shopQuery || null,
+                    p_category: state.shopCategory === '전체' ? null : state.shopCategory,
+                    p_limit: 60,
+                    p_offset: 0
+                });
+                if (error) {
+                    console.error('상품 목록 조회 오류:', error);
+                    showToast('상품 목록을 불러오지 못했습니다.');
+                } else {
+                    state.shopProducts = Array.isArray(data) ? data : [];
+                    state.shopLoaded = true;
+                    state.shopLoadedAt = Date.now();
+                }
+            } catch (err) {
+                console.error('상품 목록 조회 오류:', err);
+            }
+            state.shopLoading = false;
+            renderShopGrid();
+        }
+
         function renderShopGrid() {
             const grid = document.getElementById('shop-products-grid');
             if (!grid) return;
 
-            grid.innerHTML =
-                '<div class="bg-white rounded-2xl p-10 border border-zinc-200/80 shadow-sm flex flex-col items-center justify-center text-center my-2">' +
-                    '<div class="w-14 h-14 bg-zinc-100 text-zinc-400 rounded-full flex items-center justify-center mb-3 text-2xl border border-zinc-200">' +
-                        '<i class="fa-solid fa-box-open"></i>' +
+            renderShopCategoryChips();
+
+            if (state.shopLoading && !state.shopProducts.length) {
+                grid.innerHTML = '<div class="col-span-2 text-center py-10 text-xs text-zinc-400">상품을 불러오는 중입니다...</div>';
+                return;
+            }
+
+            if (!state.shopProducts.length) {
+                grid.innerHTML =
+                    '<div class="col-span-2 bg-white rounded-2xl p-10 border border-zinc-200/80 shadow-sm flex flex-col items-center justify-center text-center my-2">' +
+                        '<div class="w-14 h-14 bg-zinc-100 text-zinc-400 rounded-full flex items-center justify-center mb-3 text-2xl border border-zinc-200">' +
+                            '<i class="fa-solid fa-box-open"></i>' +
+                        '</div>' +
+                        '<p class="text-zinc-800 font-bold text-sm">' + (state.shopQuery || state.shopCategory !== '전체' ? '조건에 맞는 상품이 없습니다' : '등록된 상품이 없습니다') + '</p>' +
+                        '<p class="text-zinc-400 text-xs mt-1 leading-relaxed">새로운 상품이 등록되면 이곳에 표시돼요.</p>' +
+                    '</div>';
+                return;
+            }
+
+            grid.innerHTML = state.shopProducts.map(p => {
+                const img = safeImageSrc(p.image);
+                const soldOut = p.stock !== null && p.stock !== undefined && p.stock <= 0;
+                const imgHtml = img
+                    ? '<img src="' + img + '" alt="" class="w-full h-full object-cover">'
+                    : '<i class="fa-regular fa-image text-2xl text-zinc-300"></i>';
+                return '<button onclick="openShopProduct(' + jsArg(p.id) + ')" class="text-left bg-white rounded-2xl border border-zinc-200/80 shadow-sm overflow-hidden active:scale-[0.98] transition-transform">' +
+                    '<div class="relative aspect-square bg-zinc-100 flex items-center justify-center overflow-hidden">' + imgHtml +
+                        (soldOut ? '<div class="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-xs font-bold">품절</div>' : '') +
                     '</div>' +
-                    '<p class="text-zinc-800 font-bold text-sm">등록된 상품이 없습니다</p>' +
-                    '<p class="text-zinc-400 text-xs mt-1 leading-relaxed">현재 준비 중인 상품이 없습니다.<br>새로운 쇼핑 상품 입고 시 알려드릴게요!</p>' +
-                '</div>';
+                    '<div class="p-3">' +
+                        '<div class="text-[10px] text-zinc-400 font-semibold truncate">' + escapeHtml(p.merchant_name) + '</div>' +
+                        '<div class="text-xs font-bold text-zinc-900 mt-0.5 line-clamp-2 break-words">' + escapeHtml(p.name) + '</div>' +
+                        '<div class="text-sm font-extrabold text-zinc-900 mt-1.5">' + formatNumber(p.price) + '원</div>' +
+                    '</div>' +
+                '</button>';
+            }).join('');
         }
 
-        function openCartModal() {
+        function openShopProduct(productId) {
+            const user = getCurrentUser();
+            const product = state.shopProducts.find(p => p.id === productId);
+            if (!user || !product) return;
+
+            state.shopBuy = { product: product, qty: 1 };
+
+            const img = safeImageSrc(product.image);
+            document.getElementById('shop-detail-image').innerHTML = img
+                ? '<img src="' + img + '" alt="" class="w-full h-full object-cover">'
+                : '<i class="fa-regular fa-image"></i>';
+            document.getElementById('shop-detail-merchant').innerText = product.merchant_name;
+            document.getElementById('shop-detail-name').innerText = product.name;
+            document.getElementById('shop-detail-price').innerText = formatNumber(product.price) + '원';
+            document.getElementById('shop-detail-desc').innerText = product.description || '상품 설명이 없습니다.';
+            const soldOut = product.stock !== null && product.stock !== undefined && product.stock <= 0;
+            document.getElementById('shop-detail-stock').innerText = product.stock === null || product.stock === undefined
+                ? '재고 넉넉함' : (soldOut ? '품절된 상품입니다' : '남은 수량 ' + formatNumber(product.stock) + '개');
+
+            const select = document.getElementById('shop-buy-account');
+            const primary = getPrimaryAccount();
+            select.innerHTML = user.accounts.map(acc =>
+                '<option value="' + escapeHtml(acc.id) + '"' + (primary && primary.id === acc.id ? ' selected' : '') + '>' +
+                escapeHtml(acc.name) + ' · ' + formatNumber(acc.balance) + '원' + (acc.isFrozen ? ' (정지)' : '') + '</option>'
+            ).join('');
+
+            document.getElementById('shop-detail-qty').innerText = '1';
+            document.getElementById('shop-use-points').checked = false;
+            openModal('modal-shop-product');
+            updateShopTotals();
+        }
+
+        function closeShopProduct() {
+            state.shopBuy = null;
+            closeModal('modal-shop-product');
+        }
+
+        function changeShopQty(delta) {
+            const buy = state.shopBuy;
+            if (!buy) return;
+            const stock = buy.product.stock;
+            const max = stock === null || stock === undefined ? 99 : Math.max(1, Math.min(99, stock));
+            buy.qty = Math.min(max, Math.max(1, buy.qty + delta));
+            document.getElementById('shop-detail-qty').innerText = String(buy.qty);
+            updateShopTotals();
+        }
+
+        function computeShopTotals() {
+            const user = getCurrentUser();
+            const buy = state.shopBuy;
+            if (!user || !buy) return null;
+            const total = buy.product.price * buy.qty;
+            const usePoints = document.getElementById('shop-use-points').checked;
+            const maxByRate = Math.floor(total * SHOP_POINT_RATE);
+            const have = Math.max(0, user.points || 0);
+            const points = usePoints ? Math.min(have, maxByRate) : 0;
+            return { total: total, points: points, paid: total - points, maxByRate: maxByRate, have: have };
+        }
+
+        function updateShopTotals() {
+            const user = getCurrentUser();
+            const buy = state.shopBuy;
+            const t = computeShopTotals();
+            if (!user || !buy || !t) return;
+
+            document.getElementById('shop-sum-total').innerText = formatNumber(t.total) + '원';
+            document.getElementById('shop-sum-points').innerText = '-' + formatNumber(t.points) + '원';
+            document.getElementById('shop-sum-paid').innerText = formatNumber(t.paid) + '원';
+            document.getElementById('shop-points-hint').innerText = '보유 ' + formatNumber(t.have) + 'P · 결제 금액의 최대 ' + Math.round(SHOP_POINT_RATE * 100) + '%까지 (1P = 1원)';
+
+            const accId = document.getElementById('shop-buy-account').value;
+            const acc = user.accounts.find(a => a.id === accId);
+            const soldOut = buy.product.stock !== null && buy.product.stock !== undefined && buy.product.stock <= 0;
+
+            const warn = document.getElementById('shop-sum-warning');
+            const btn = document.getElementById('shop-buy-btn');
+            let message = '';
+            if (soldOut) message = '품절된 상품입니다.';
+            else if (!acc) message = '결제 계좌를 선택해 주세요.';
+            else if (acc.isFrozen) message = '정지된 계좌로는 결제할 수 없습니다.';
+            else if (acc.balance < t.paid) message = '계좌 잔액이 부족합니다.';
+
+            warn.innerText = message;
+            warn.classList.toggle('hidden', !message);
+            btn.disabled = !!message || state.shopBuying;
+            btn.innerText = message ? '구매할 수 없습니다' : formatNumber(t.paid) + '원 결제하기';
+        }
+
+        async function confirmShopPurchase() {
+            if (state.shopBuying) return;
+            const user = getCurrentUser();
+            const buy = state.shopBuy;
+            const t = computeShopTotals();
+            if (!user || !buy || !t) return;
+
+            const accId = document.getElementById('shop-buy-account').value;
+            const usePoints = document.getElementById('shop-use-points').checked;
+
+            state.shopBuying = true;
+            const btn = document.getElementById('shop-buy-btn');
+            btn.disabled = true;
+            btn.innerText = '결제 중...';
+
+            let result = null;
+            try {
+                const { data, error } = await authRpc('app_buy_product', {
+                    p_product_id: buy.product.id,
+                    p_account_id: accId,
+                    p_quantity: buy.qty,
+                    p_use_points: usePoints
+                });
+                if (error) {
+                    console.error('상품 구매 오류:', error);
+                } else {
+                    result = data;
+                }
+            } catch (err) {
+                console.error('상품 구매 오류:', err);
+            }
+
+            state.shopBuying = false;
+
+            if (!result || !result.ok) {
+                const msg = {
+                    insufficient_balance: '계좌 잔액이 부족합니다.',
+                    out_of_stock: '재고가 부족합니다.',
+                    product_unavailable: '판매가 중단된 상품입니다.',
+                    frozen: '정지된 계좌로는 결제할 수 없습니다.',
+                    invalid_account: '결제 계좌를 확인해 주세요.',
+                    invalid_quantity: '수량을 확인해 주세요.'
+                }[result && result.reason] || '구매 처리 중 오류가 발생했습니다.';
+                showToast(msg);
+                updateShopTotals();
+                if (result && (result.reason === 'out_of_stock' || result.reason === 'product_unavailable')) {
+                    closeShopProduct();
+                    loadShopProducts(true);
+                }
+                return;
+            }
+
+            const name = buy.product.name;
+            closeShopProduct();
+            showToast(name + ' 구매가 완료되었습니다. (' + formatNumber(result.paid_amount) + '원)');
+
+            try {
+                await loadUserFinancialData(user.id);
+            } catch (err) {
+                console.error('구매 후 데이터 갱신 오류:', err);
+            }
+            const refreshed = getCurrentUser();
+            if (refreshed) {
+                const acc = refreshed.accounts.find(a => a.id === accId);
+                if (acc && typeof result.new_balance === 'number') acc.balance = result.new_balance;
+                refreshed.points = Math.max(0, (refreshed.points || 0) - (result.points_used || 0));
+            }
+            renderApp();
+            refreshNotifBadge();
+            loadShopProducts(true);
+        }
+
+        function orderStatusLabel(status) {
+            return { paid: '결제 완료', completed: '수령 완료', cancelled: '취소·환불' }[status] || status;
+        }
+
+        function orderStatusClass(status) {
+            return {
+                paid: 'bg-amber-50 text-amber-700 border-amber-200',
+                completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                cancelled: 'bg-zinc-100 text-zinc-500 border-zinc-200'
+            }[status] || 'bg-zinc-100 text-zinc-500 border-zinc-200';
+        }
+
+        async function openCartModal() {
             const user = getCurrentUser();
             const listContainer = document.getElementById('cart-items-list');
             if (!user || !listContainer) return;
 
-            if (!user.purchasedItems || user.purchasedItems.length === 0) {
-                listContainer.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400 bg-zinc-50 rounded-xl border border-zinc-200">구매한 상품 내역이 없습니다.</div>';
-            } else {
-                listContainer.innerHTML = user.purchasedItems.map(item =>
-                    '<div class="bg-white p-3.5 rounded-xl border border-zinc-200 flex justify-between items-center text-xs">' +
-                        '<div>' +
-                            '<div class="font-bold text-zinc-800">' + escapeHtml(item.name) + '</div>' +
-                            '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(item.date) + ' | 결제수단: ' + escapeHtml(item.method) + '</div>' +
-                        '</div>' +
-                        '<div class="font-extrabold text-zinc-900">' + formatNumber(item.price) + '원</div>' +
-                    '</div>'
-                ).join('');
-            }
+            listContainer.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">불러오는 중...</div>';
             openModal('modal-cart');
+
+            const { data, error } = await authRpc('app_list_my_orders', { p_limit: 50 });
+            if (error) {
+                listContainer.innerHTML = '<div class="text-center py-6 text-xs text-red-500 bg-red-50 rounded-xl border border-red-100">구매 내역을 불러오지 못했습니다.</div>';
+                return;
+            }
+
+            const orders = Array.isArray(data) ? data : [];
+            if (!orders.length) {
+                listContainer.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400 bg-zinc-50 rounded-xl border border-zinc-200">구매한 상품 내역이 없습니다.</div>';
+                return;
+            }
+
+            listContainer.innerHTML = orders.map(o =>
+                '<div class="bg-white p-3.5 rounded-xl border border-zinc-200 text-xs">' +
+                    '<div class="flex justify-between items-start gap-3">' +
+                        '<div class="min-w-0">' +
+                            '<div class="font-bold text-zinc-800 break-words">' + escapeHtml(o.product_name) + ' × ' + escapeHtml(o.quantity) + '</div>' +
+                            '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(o.merchant_name || '') + ' · ' + escapeHtml(formatRelativeDate(o.created_at)) + '</div>' +
+                        '</div>' +
+                        '<div class="text-right shrink-0">' +
+                            '<div class="font-extrabold text-zinc-900">' + formatNumber(o.paid_amount) + '원</div>' +
+                            (o.points_used > 0 ? '<div class="text-[10px] text-zinc-400">포인트 ' + formatNumber(o.points_used) + 'P 사용</div>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="mt-2"><span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ' + orderStatusClass(o.status) + '">' + orderStatusLabel(o.status) + '</span></div>' +
+                '</div>'
+            ).join('');
+        }
+
+        function isOverlayOpen() {
+            const portal = document.getElementById('merchant-portal');
+            const admin = document.getElementById('admin-fullscreen');
+            return (!!portal && !portal.classList.contains('hidden')) || (!!admin && !admin.classList.contains('hidden'));
+        }
+
+        let overlayToastTimer = null;
+        function showOverlayToast(message) {
+            const el = document.getElementById('overlay-toast');
+            if (!el) return;
+            el.innerText = message;
+            el.classList.remove('hidden');
+            clearTimeout(overlayToastTimer);
+            overlayToastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+        }
+
+        function isMerchantPortalOpen() {
+            const el = document.getElementById('merchant-portal');
+            return !!el && !el.classList.contains('hidden');
+        }
+
+        function openMerchantPortal() {
+            const mch = getCurrentMerchant();
+            if (!mch || !state.merchantToken) {
+                showToast('가맹점 로그인이 필요합니다.');
+                return;
+            }
+            closeModal('modal-pos');
+            document.getElementById('merchant-portal').classList.remove('hidden');
+            document.getElementById('portal-merchant-name').innerText = mch.name;
+            const select = document.getElementById('pf-category');
+            if (select && !select.options.length) {
+                select.innerHTML = SHOP_CATEGORIES.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+            }
+            switchPortalSection('dashboard');
+        }
+
+        function closeMerchantPortal() {
+            const el = document.getElementById('merchant-portal');
+            if (el) el.classList.add('hidden');
+            closePortalProductForm();
+            if (getCurrentMerchant()) openMerchantDashboard();
+        }
+
+        function switchPortalSection(name) {
+            state.portalSection = name;
+            ['dashboard', 'products', 'orders'].forEach(sec => {
+                const section = document.getElementById('portal-section-' + sec);
+                if (section) section.classList.toggle('hidden', sec !== name);
+                const nav = document.getElementById('portal-nav-' + sec);
+                if (nav) nav.className = 'portal-nav w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2.5 ' +
+                    (sec === name ? 'bg-white text-zinc-900' : 'text-zinc-300 hover:bg-zinc-800');
+            });
+
+            if (name === 'dashboard') {
+                renderPortalDashboard();
+                loadMerchantProducts();
+                loadMerchantOrders();
+            } else if (name === 'products') {
+                loadMerchantProducts();
+            } else if (name === 'orders') {
+                loadMerchantOrders();
+            }
+        }
+
+        function renderPortalDashboard() {
+            const mch = getCurrentMerchant();
+            if (!mch) return;
+            document.getElementById('portal-unsettled').innerText = formatNumber(mch.unsettledBalance) + '원';
+            document.getElementById('portal-total-sales').innerText = formatNumber(mch.totalSales) + '원';
+            document.getElementById('portal-settle-acc').innerText = mch.accountNo || '-';
+            document.getElementById('portal-pending-orders').innerText = state.merchantOrders.filter(o => o.status === 'paid').length + '건';
+            document.getElementById('portal-active-products').innerText = state.merchantProducts.filter(p => p.active && !p.hidden).length + '개';
+
+            const list = document.getElementById('portal-sales-list');
+            const sales = (mch.salesHistory || []).slice(0, 10);
+            list.innerHTML = sales.length
+                ? sales.map(item =>
+                    '<div class="flex justify-between items-center text-xs bg-zinc-50 border border-zinc-100 rounded-xl px-3.5 py-2.5">' +
+                        '<div class="min-w-0"><div class="font-semibold text-zinc-800 truncate">' + escapeHtml(item.title) + '</div>' +
+                        '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(item.date || '') + (item.settled ? ' · 정산 완료' : ' · 미정산') + '</div></div>' +
+                        '<div class="font-extrabold text-zinc-900 shrink-0 ml-3">+' + formatNumber(item.amount) + '원</div>' +
+                    '</div>').join('')
+                : '<div class="text-center py-6 text-xs text-zinc-400">매출 내역이 없습니다.</div>';
+        }
+
+        async function portalSettle() {
+            await executeMerchantSettlement();
+            const mch = getCurrentMerchant();
+            if (mch) await refreshMerchantFromServer(mch.id);
+            renderPortalDashboard();
+        }
+
+        async function loadMerchantProducts() {
+            const { data, error } = await merchantRpc('app_merchant_list_products', {});
+            if (error) {
+                if (!isInvalidSessionError(error)) showToast('상품 목록을 불러오지 못했습니다.');
+                return;
+            }
+            state.merchantProducts = Array.isArray(data) ? data : [];
+            renderMerchantProducts();
+            if (state.portalSection === 'dashboard') renderPortalDashboard();
+        }
+
+        function renderMerchantProducts() {
+            const box = document.getElementById('portal-products-list');
+            if (!box) return;
+
+            if (!state.merchantProducts.length) {
+                box.innerHTML = '<div class="text-center py-14 text-sm text-zinc-400">등록된 상품이 없습니다. 오른쪽 위 "상품 등록" 버튼으로 첫 상품을 추가해 보세요.</div>';
+                return;
+            }
+
+            box.innerHTML =
+                '<div class="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-zinc-50 border-b border-zinc-100 text-[11px] font-semibold text-zinc-400">' +
+                    '<div class="col-span-5">상품</div><div class="col-span-2">가격</div><div class="col-span-1">재고</div><div class="col-span-2">상태</div><div class="col-span-2 text-right">관리</div>' +
+                '</div>' +
+                state.merchantProducts.map(p => {
+                    const img = safeImageSrc(p.image);
+                    const stockText = p.stock === null || p.stock === undefined ? '무제한' : formatNumber(p.stock) + '개';
+                    const status = p.hidden
+                        ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">관리자 숨김</span>'
+                        : (p.active
+                            ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">판매 중</span>'
+                            : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-500 border border-zinc-200">판매 중지</span>');
+                    return '<div class="grid grid-cols-12 gap-3 items-center px-5 py-3.5 border-b border-zinc-100 last:border-b-0">' +
+                        '<div class="col-span-12 md:col-span-5 flex items-center gap-3 min-w-0">' +
+                            '<div class="w-12 h-12 rounded-lg bg-zinc-100 overflow-hidden shrink-0 flex items-center justify-center text-zinc-300">' +
+                                (img ? '<img src="' + img + '" alt="" class="w-full h-full object-cover">' : '<i class="fa-regular fa-image"></i>') +
+                            '</div>' +
+                            '<div class="min-w-0"><div class="text-sm font-bold text-zinc-900 truncate">' + escapeHtml(p.name) + '</div>' +
+                            '<div class="text-[11px] text-zinc-400">' + escapeHtml(p.category) + '</div></div>' +
+                        '</div>' +
+                        '<div class="col-span-4 md:col-span-2 text-sm font-semibold">' + formatNumber(p.price) + '원</div>' +
+                        '<div class="col-span-3 md:col-span-1 text-xs text-zinc-500">' + stockText + '</div>' +
+                        '<div class="col-span-5 md:col-span-2">' + status + '</div>' +
+                        '<div class="col-span-12 md:col-span-2 flex md:justify-end gap-1.5">' +
+                            '<button onclick="openPortalProductForm(' + jsArg(p.id) + ')" class="px-2.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-xs font-semibold text-zinc-700">수정</button>' +
+                            '<button onclick="togglePortalProductActive(' + jsArg(p.id) + ')" class="px-2.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-xs font-semibold text-zinc-700">' + (p.active ? '중지' : '판매') + '</button>' +
+                            '<button onclick="deletePortalProduct(' + jsArg(p.id) + ')" class="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-600">삭제</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+        }
+
+        function openPortalProductForm(id) {
+            const p = id ? state.merchantProducts.find(x => x.id === id) : null;
+            document.getElementById('pf-title').innerText = p ? '상품 수정' : '상품 등록';
+            document.getElementById('pf-id').value = p ? p.id : '';
+            document.getElementById('pf-name').value = p ? p.name : '';
+            document.getElementById('pf-price').value = p ? p.price : '';
+            document.getElementById('pf-stock').value = p && p.stock !== null && p.stock !== undefined ? p.stock : '';
+            document.getElementById('pf-desc').value = p && p.description ? p.description : '';
+            document.getElementById('pf-active').checked = p ? !!p.active : true;
+            const select = document.getElementById('pf-category');
+            if (!select.options.length) {
+                select.innerHTML = SHOP_CATEGORIES.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+            }
+            select.value = p ? p.category : SHOP_CATEGORIES[0];
+            state.portalImage = p && safeImageSrc(p.image) ? p.image : '';
+            document.getElementById('pf-image-file').value = '';
+            renderPortalImagePreview();
+            const btn = document.getElementById('pf-save-btn');
+            btn.disabled = false;
+            btn.innerText = '저장';
+            document.getElementById('portal-product-modal').classList.remove('hidden');
+        }
+
+        function closePortalProductForm() {
+            const modal = document.getElementById('portal-product-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function renderPortalImagePreview() {
+            const box = document.getElementById('pf-image-preview');
+            if (!box) return;
+            box.innerHTML = state.portalImage
+                ? '<img src="' + state.portalImage + '" alt="" class="w-full h-full object-cover">'
+                : '<i class="fa-regular fa-image"></i>';
+        }
+
+        function clearPortalProductImage() {
+            state.portalImage = '';
+            document.getElementById('pf-image-file').value = '';
+            renderPortalImagePreview();
+        }
+
+        function compressImageFile(file, maxSide) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('read_failed'));
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('bad_image'));
+                    img.onload = () => {
+                        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                        const w = Math.max(1, Math.round(img.width * scale));
+                        const h = Math.max(1, Math.round(img.height * scale));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, w, h);
+                        ctx.drawImage(img, 0, 0, w, h);
+                        let quality = 0.78;
+                        let out = canvas.toDataURL('image/jpeg', quality);
+                        while (out.length > 150000 && quality > 0.3) {
+                            quality -= 0.1;
+                            out = canvas.toDataURL('image/jpeg', quality);
+                        }
+                        if (out.length > 190000) reject(new Error('too_large'));
+                        else resolve(out);
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function onPortalImageSelected(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+                showToast('JPG, PNG, WEBP 이미지만 올릴 수 있습니다.');
+                input.value = '';
+                return;
+            }
+            try {
+                state.portalImage = await compressImageFile(file, 480);
+                renderPortalImagePreview();
+            } catch (err) {
+                console.error('이미지 처리 오류:', err);
+                showToast('이미지를 처리하지 못했습니다. 다른 이미지를 선택해 주세요.');
+                input.value = '';
+            }
+        }
+
+        async function savePortalProduct() {
+            const btn = document.getElementById('pf-save-btn');
+            if (btn.disabled) return;
+
+            const id = document.getElementById('pf-id').value;
+            const name = document.getElementById('pf-name').value.trim();
+            const priceRaw = document.getElementById('pf-price').value;
+            const stockRaw = document.getElementById('pf-stock').value.trim();
+            const price = parseInt(priceRaw, 10);
+
+            if (!name) { showToast('상품명을 입력해 주세요.'); return; }
+            if (!price || price < 100) { showToast('가격은 100원 이상으로 입력해 주세요.'); return; }
+            if (stockRaw !== '' && (!/^\d+$/.test(stockRaw) || parseInt(stockRaw, 10) > 99999)) { showToast('재고는 0~99999 사이 숫자로 입력해 주세요.'); return; }
+
+            btn.disabled = true;
+            btn.innerText = '저장 중...';
+
+            const { data, error } = await merchantRpc('app_merchant_save_product', {
+                p_id: id || null,
+                p_name: name,
+                p_price: price,
+                p_description: document.getElementById('pf-desc').value.trim() || null,
+                p_image: state.portalImage || null,
+                p_category: document.getElementById('pf-category').value,
+                p_stock: stockRaw === '' ? null : parseInt(stockRaw, 10),
+                p_active: document.getElementById('pf-active').checked
+            });
+
+            if (error || !data || !data.ok) {
+                const msg = {
+                    invalid_name: '상품명을 확인해 주세요.',
+                    invalid_description: '상품 설명에 사용할 수 없는 문자가 있습니다.',
+                    invalid_price: '가격은 100원 이상 1억 원 이하로 입력해 주세요.',
+                    invalid_category: '카테고리를 선택해 주세요.',
+                    invalid_stock: '재고 수량을 확인해 주세요.',
+                    invalid_image: '이미지 형식이나 크기를 확인해 주세요.',
+                    limit_reached: '상품은 최대 100개까지 등록할 수 있습니다.',
+                    not_found: '상품을 찾을 수 없습니다.'
+                }[data && data.reason] || '상품을 저장하지 못했습니다.';
+                if (!error || !isInvalidSessionError(error)) showToast(msg);
+                btn.disabled = false;
+                btn.innerText = '저장';
+                return;
+            }
+
+            closePortalProductForm();
+            showToast(id ? '상품을 수정했습니다.' : '상품을 등록했습니다.');
+            await loadMerchantProducts();
+        }
+
+        async function togglePortalProductActive(id) {
+            const p = state.merchantProducts.find(x => x.id === id);
+            if (!p) return;
+            const { data, error } = await merchantRpc('app_merchant_set_product_active', { p_id: id, p_active: !p.active });
+            if (error || !data || !data.ok) {
+                if (!error || !isInvalidSessionError(error)) showToast('상태를 변경하지 못했습니다.');
+                return;
+            }
+            showToast(p.active ? '판매를 중지했습니다.' : '판매를 다시 시작했습니다.');
+            await loadMerchantProducts();
+        }
+
+        async function deletePortalProduct(id) {
+            const p = state.merchantProducts.find(x => x.id === id);
+            if (!p) return;
+            if (!window.confirm('"' + p.name + '" 상품을 삭제할까요? 삭제하면 되돌릴 수 없습니다.')) return;
+            const { error } = await merchantRpc('app_merchant_delete_product', { p_id: id });
+            if (error) {
+                if (!isInvalidSessionError(error)) showToast('상품을 삭제하지 못했습니다.');
+                return;
+            }
+            showToast('상품을 삭제했습니다.');
+            await loadMerchantProducts();
+        }
+
+        async function loadMerchantOrders() {
+            const { data, error } = await merchantRpc('app_merchant_list_orders', { p_limit: 100 });
+            if (error) {
+                if (!isInvalidSessionError(error)) showToast('주문 목록을 불러오지 못했습니다.');
+                return;
+            }
+            state.merchantOrders = Array.isArray(data) ? data : [];
+            renderMerchantOrders();
+            if (state.portalSection === 'dashboard') renderPortalDashboard();
+        }
+
+        function renderMerchantOrders() {
+            const box = document.getElementById('portal-orders-list');
+            if (!box) return;
+
+            if (!state.merchantOrders.length) {
+                box.innerHTML = '<div class="text-center py-14 text-sm text-zinc-400">아직 들어온 주문이 없습니다.</div>';
+                return;
+            }
+
+            box.innerHTML =
+                '<div class="hidden md:grid grid-cols-12 gap-3 px-5 py-3 bg-zinc-50 border-b border-zinc-100 text-[11px] font-semibold text-zinc-400">' +
+                    '<div class="col-span-3">상품</div><div class="col-span-2">구매자</div><div class="col-span-2">결제 금액</div><div class="col-span-2">상태</div><div class="col-span-3 text-right">처리</div>' +
+                '</div>' +
+                state.merchantOrders.map(o => {
+                    const actions = o.status === 'paid'
+                        ? '<button onclick="completePortalOrder(' + jsArg(o.id) + ')" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white">수령 완료</button>' +
+                          '<button onclick="cancelPortalOrder(' + jsArg(o.id) + ')" class="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-600">취소·환불</button>'
+                        : '<span class="text-[11px] text-zinc-300">-</span>';
+                    return '<div class="grid grid-cols-12 gap-3 items-center px-5 py-3.5 border-b border-zinc-100 last:border-b-0 text-xs">' +
+                        '<div class="col-span-12 md:col-span-3 min-w-0"><div class="text-sm font-bold text-zinc-900 truncate">' + escapeHtml(o.product_name) + ' × ' + escapeHtml(o.quantity) + '</div>' +
+                            '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(formatRelativeDate(o.created_at)) + '</div></div>' +
+                        '<div class="col-span-4 md:col-span-2 text-zinc-700 truncate">' + escapeHtml(o.buyer_alias) + '</div>' +
+                        '<div class="col-span-4 md:col-span-2 font-semibold">' + formatNumber(o.paid_amount) + '원' +
+                            (o.points_used > 0 ? '<div class="text-[10px] text-zinc-400 font-normal">포인트 ' + formatNumber(o.points_used) + 'P</div>' : '') + '</div>' +
+                        '<div class="col-span-4 md:col-span-2"><span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ' + orderStatusClass(o.status) + '">' + orderStatusLabel(o.status) + '</span></div>' +
+                        '<div class="col-span-12 md:col-span-3 flex md:justify-end gap-1.5">' + actions + '</div>' +
+                    '</div>';
+                }).join('');
+        }
+
+        async function completePortalOrder(id) {
+            const { data, error } = await merchantRpc('app_merchant_complete_order', { p_order_id: id });
+            if (error || !data || !data.ok) {
+                if (!error || !isInvalidSessionError(error)) showToast('수령 완료 처리를 하지 못했습니다.');
+                return;
+            }
+            showToast('수령 완료로 처리했습니다.');
+            await loadMerchantOrders();
+        }
+
+        async function cancelPortalOrder(id) {
+            const order = state.merchantOrders.find(o => o.id === id);
+            if (!order) return;
+            if (!window.confirm('이 주문을 취소하고 ' + formatNumber(order.paid_amount) + '원을 구매자에게 환불할까요?')) return;
+            const { data, error } = await merchantRpc('app_merchant_cancel_order', { p_order_id: id });
+            if (error || !data || !data.ok) {
+                const msg = {
+                    already_settled: '이미 정산된 주문은 취소할 수 없습니다.',
+                    invalid_status: '이미 처리된 주문입니다.',
+                    not_found: '주문을 찾을 수 없습니다.'
+                }[data && data.reason] || '주문을 취소하지 못했습니다.';
+                if (!error || !isInvalidSessionError(error)) showToast(msg);
+                return;
+            }
+            showToast('주문을 취소하고 환불했습니다.');
+            await loadMerchantOrders();
+            const mch = getCurrentMerchant();
+            if (mch) await refreshMerchantFromServer(mch.id);
+        }
+
+        async function loadAdminProducts() {
+            const box = document.getElementById('admin-products-list');
+            if (!box) return;
+            box.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
+            const { data, error } = await authRpc('app_admin_list_products', {});
+            if (error) {
+                box.innerHTML = '<div class="text-center py-4 text-xs text-red-500">상품 목록을 불러오지 못했습니다.</div>';
+                return;
+            }
+            const rows = Array.isArray(data) ? data : [];
+            if (!rows.length) {
+                box.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">등록된 상품이 없습니다.</div>';
+                return;
+            }
+            box.innerHTML = rows.map(p =>
+                '<div class="flex items-center justify-between gap-3 bg-zinc-50 border border-zinc-100 rounded-xl px-3.5 py-2.5 text-xs">' +
+                    '<div class="min-w-0"><div class="font-bold text-zinc-900 truncate">' + escapeHtml(p.name) + '</div>' +
+                    '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(p.merchant_name) + ' · ' + formatNumber(p.price) + '원 · ' + escapeHtml(p.category) +
+                    (p.active ? '' : ' · 판매 중지') + '</div></div>' +
+                    '<button onclick="adminToggleProductHidden(' + jsArg(p.id) + ', ' + (p.hidden ? 'false' : 'true') + ')" class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold ' +
+                        (p.hidden ? 'bg-zinc-900 text-white' : 'bg-red-50 text-red-600 hover:bg-red-100') + '">' + (p.hidden ? '숨김 해제' : '숨기기') + '</button>' +
+                '</div>'
+            ).join('');
+        }
+
+        async function adminToggleProductHidden(productId, hidden) {
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+            const { error } = await adminRpc('set_product_hidden', {
+                p_admin_pin: adminPin,
+                p_product_id: productId,
+                p_hidden: hidden
+            });
+            if (error) {
+                showToast(adminRpcErrorMessage(error));
+                return;
+            }
+            showToast(hidden ? '상품을 숨겼습니다.' : '상품 숨김을 해제했습니다.');
+            loadAdminProducts();
         }
 
         function openTransferModal() {
@@ -3306,6 +4023,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (merchantTokenToRevoke) sbClient.rpc('app_logout', { p_token: merchantTokenToRevoke }).then(() => {}, () => {});
             state.currentMerchantId = null;
             state.enteredMerchantPin = '';
+            const portalEl = document.getElementById('merchant-portal');
+            if (portalEl) portalEl.classList.add('hidden');
+            state.merchantProducts = [];
+            state.merchantOrders = [];
             saveSession();
             cleanupMerchantWaiting();
             updateMerchantPinDots();
@@ -4750,6 +5471,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             renderAdminUserList('');
             renderAdminMerchantList('');
             renderAdminTransactionSearch('');
+            loadAdminProducts();
         }
 
         function closeAdminPage() {
@@ -4779,6 +5501,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             } else {
                 stopPayCodeAutoRefresh();
             }
+
+            if (tabId === 'shop') loadShopProducts(false);
         }
 
         const AUTO_TRANSFER_MAX_CATCHUP = 6;
