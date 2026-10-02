@@ -101,7 +101,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             currentMerchantId: null,
             selectedMerchantLoginId: null,
             merchantAuthMode: 'login',
-            enteredMerchantPin: '',
+            myMerchants: [],
+            currentMerchantRole: null,
+            merchantMembers: [],
             merchantTab: 'charge',
 
             selectedProduct: null,
@@ -1524,14 +1526,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const posModal = document.getElementById('modal-pos');
-            const mchLoginView = document.getElementById('mch-login-view');
-            if (posModal && !posModal.classList.contains('hidden-modal') && isVisible(mchLoginView) && state.merchantAuthMode === 'login') {
-                e.preventDefault();
-                if (isDigit) pressMerchantPin(e.key);
-                else backspaceMerchantPin();
-                return;
-            }
         });
 
         function updatePinDots() {
@@ -1782,6 +1776,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function logout() {
+            if (state.currentMerchantId || state.merchantToken) {
+                try { logoutMerchant(); } catch (e) {}
+            }
             const tokenToRevoke = state.sessionToken;
             state.sessionToken = null;
             if (tokenToRevoke) sbClient.rpc('app_logout', { p_token: tokenToRevoke }).then(() => {}, () => {});
@@ -3755,8 +3752,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function switchMerchantAuthMode(mode) {
             state.merchantAuthMode = mode;
-            state.enteredMerchantPin = '';
-            updateMerchantPinDots();
 
             const loginBtn = document.getElementById('mch-tab-login-btn');
             const signupBtn = document.getElementById('mch-tab-signup-btn');
@@ -3768,7 +3763,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 signupBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-zinc-500 transition-all';
                 loginView.classList.remove('hidden');
                 signupView.classList.add('hidden');
-                renderMerchantLoginView();
+                loadMyMerchants();
             } else {
                 signupBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-white text-zinc-900 shadow-sm transition-all';
                 loginBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-zinc-500 transition-all';
@@ -3785,38 +3780,72 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             return 'fa-store';
         }
 
+        function merchantRoleLabel(role) {
+            return role === 'owner' ? '사장님(설립자)' : '권한 부여받은 직원';
+        }
+
+        async function loadMyMerchants() {
+            if (!getCurrentUser() || !state.sessionToken) {
+                state.myMerchants = [];
+                renderMerchantLoginView();
+                return;
+            }
+            const { data, error } = await authRpc('app_my_merchants', {});
+            if (error) {
+                if (!isInvalidSessionError(error)) {
+                    console.error('내 가맹점 조회 오류:', error);
+                    showToast('가맹점 목록을 불러오지 못했습니다.');
+                }
+                state.myMerchants = [];
+            } else {
+                state.myMerchants = Array.isArray(data) ? data : [];
+            }
+            renderMerchantLoginView();
+        }
+
         function renderMerchantLoginView() {
             const labelElem = document.getElementById('mch-login-select-label');
             const dropdownElem = document.getElementById('mch-login-select-dropdown');
             const hiddenInput = document.getElementById('mch-login-select');
             const btnIcon = document.querySelector('#mch-login-select-btn i.fa-solid:not(.fa-chevron-down)');
             const nameElem = document.getElementById('mch-selected-name');
-            const bizElem = document.getElementById('mch-selected-biz');
+            const roleElem = document.getElementById('mch-selected-role');
+            const hintElem = document.getElementById('mch-access-hint');
+            const enterBtn = document.getElementById('mch-enter-btn');
 
-            const listedMerchants = state.merchants.filter(m => (m.status || 'approved') === 'approved');
-
-            if (listedMerchants.length === 0) {
-                switchMerchantAuthMode('signup');
-                return;
-            }
+            const loggedIn = !!getCurrentUser() && !!state.sessionToken;
+            const list = state.myMerchants || [];
 
             if (dropdownElem) {
-                dropdownElem.innerHTML = listedMerchants.map(m =>
+                dropdownElem.innerHTML = list.map(m =>
                     '<div onclick="selectLoginMerchant(' + jsArg(m.id) + ')" class="flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-zinc-50 cursor-pointer">' +
                         '<i class="fa-solid ' + getCategoryIcon(m.category) + ' text-zinc-500 w-3.5"></i> ' + escapeHtml(m.name) + ' (' + escapeHtml(m.category) + ')' +
                     '</div>'
                 ).join('');
             }
 
-            const current = listedMerchants.find(m => m.id === state.selectedMerchantLoginId) || listedMerchants[0];
-            if (current) {
-                state.selectedMerchantLoginId = current.id;
-                if (hiddenInput) hiddenInput.value = current.id;
-                if (labelElem) labelElem.innerText = current.name + ' (' + current.category + ')';
-                if (btnIcon) btnIcon.className = 'fa-solid ' + getCategoryIcon(current.category) + ' text-zinc-500 w-3.5';
-                if (nameElem) nameElem.innerText = current.name;
-                if (bizElem) bizElem.innerText = '';
+            if (!loggedIn || list.length === 0) {
+                state.selectedMerchantLoginId = null;
+                if (hiddenInput) hiddenInput.value = '';
+                if (labelElem) labelElem.innerText = loggedIn ? '접근 가능한 가맹점이 없습니다' : '로그인 후 이용할 수 있습니다';
+                if (nameElem) nameElem.innerText = '-';
+                if (roleElem) roleElem.innerText = '';
+                if (hintElem) hintElem.innerText = loggedIn
+                    ? '사장님이 권한을 부여하면 여기에 가맹점이 표시돼요. 직접 운영하려면 \'신규 가맹점 등록\'을 이용해 주세요.'
+                    : '가맹점 대시보드는 개인 계정으로 로그인한 뒤 이용할 수 있어요.';
+                if (enterBtn) enterBtn.disabled = true;
+                return;
             }
+
+            const current = list.find(m => m.id === state.selectedMerchantLoginId) || list[0];
+            state.selectedMerchantLoginId = current.id;
+            if (hiddenInput) hiddenInput.value = current.id;
+            if (labelElem) labelElem.innerText = current.name + ' (' + current.category + ')';
+            if (btnIcon) btnIcon.className = 'fa-solid ' + getCategoryIcon(current.category) + ' text-zinc-500 w-3.5';
+            if (nameElem) nameElem.innerText = current.name;
+            if (roleElem) roleElem.innerText = merchantRoleLabel(current.role);
+            if (hintElem) hintElem.innerText = '가맹점을 설립한 사장님 또는 사장님이 권한을 부여한 직원만 접속할 수 있어요.';
+            if (enterBtn) enterBtn.disabled = false;
         }
 
         function toggleMchLoginDropdown() {
@@ -3834,75 +3863,51 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function selectLoginMerchant(mchId) {
             state.selectedMerchantLoginId = mchId;
-            state.enteredMerchantPin = '';
-            updateMerchantPinDots();
             renderMerchantLoginView();
             const dropdown = document.getElementById('mch-login-select-dropdown');
             if (dropdown) dropdown.classList.add('hidden');
         }
 
-        function pressMerchantPin(digit) {
-            if (state.enteredMerchantPin.length < 4) {
-                state.enteredMerchantPin += digit;
-                updateMerchantPinDots();
-
-                if (state.enteredMerchantPin.length === 4) {
-                    setTimeout(verifyMerchantPinLogin, 150);
-                }
-            }
-        }
-
-        function backspaceMerchantPin() {
-            if (state.enteredMerchantPin.length > 0) {
-                state.enteredMerchantPin = state.enteredMerchantPin.slice(0, -1);
-                updateMerchantPinDots();
-            }
-        }
-
-        function clearMerchantPin() {
-            state.enteredMerchantPin = '';
-            updateMerchantPinDots();
-        }
-
-        function updateMerchantPinDots() {
-            const dots = document.querySelectorAll('.mch-pin-dot');
-            dots.forEach((dot, idx) => {
-                if (idx < state.enteredMerchantPin.length) {
-                    dot.className = 'mch-pin-dot w-3.5 h-3.5 rounded-full bg-zinc-900 border-2 border-zinc-900 transition-all scale-110';
-                } else {
-                    dot.className = 'mch-pin-dot w-3.5 h-3.5 rounded-full border-2 border-zinc-300 bg-transparent transition-all';
-                }
-            });
-        }
-
-        async function verifyMerchantPinLogin() {
+        async function enterMerchantDashboard() {
             const targetMchId = state.selectedMerchantLoginId;
             if (!targetMchId) return;
+            if (!getCurrentUser() || !state.sessionToken) {
+                showToast('먼저 개인 계정으로 로그인해 주세요.');
+                return;
+            }
+
+            const enterBtn = document.getElementById('mch-enter-btn');
+            if (enterBtn) enterBtn.disabled = true;
 
             let row;
             let loginToken = null;
+            let role = null;
             try {
-                const { data, error } = await sbClient.rpc('app_merchant_login', {
-                    p_merchant_id: targetMchId,
-                    p_pin: state.enteredMerchantPin
-                });
+                const { data, error } = await authRpc('app_merchant_login', { p_merchant_id: targetMchId });
                 if (error) {
-                    console.error('가맹점 로그인 확인 오류:', error);
-                    showToast('로그인 확인 중 오류가 발생했습니다.');
+                    if (String(error.message || '').includes('forbidden')) {
+                        showToast('이 가맹점에 접근할 권한이 없습니다.');
+                        loadMyMerchants();
+                    } else if (!isInvalidSessionError(error)) {
+                        console.error('가맹점 접속 오류:', error);
+                        showToast('접속 확인 중 오류가 발생했습니다.');
+                    }
+                    if (enterBtn) enterBtn.disabled = false;
                     return;
                 }
                 row = data && data.ok ? data.merchant : null;
                 loginToken = data && data.token ? data.token : null;
+                role = data && data.role ? data.role : null;
             } catch (err) {
-                console.error('가맹점 로그인 확인 오류:', err);
-                showToast('로그인 확인 중 오류가 발생했습니다.');
+                console.error('가맹점 접속 오류:', err);
+                showToast('접속 확인 중 오류가 발생했습니다.');
+                if (enterBtn) enterBtn.disabled = false;
                 return;
             }
+            if (enterBtn) enterBtn.disabled = false;
 
-            if (!row) {
-                showToast('가맹점 보안 PIN 번호가 일치하지 않습니다.');
-                state.enteredMerchantPin = '';
-                updateMerchantPinDots();
+            if (!row || !loginToken || !role) {
+                showToast('이 가맹점에 접근할 권한이 없습니다.');
                 return;
             }
 
@@ -3921,21 +3926,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             if (localMch.status === 'pending') {
                 showToast('관리자 승인 대기 중인 가맹점입니다. 승인 후 이용해 주세요.');
-                state.enteredMerchantPin = '';
-                updateMerchantPinDots();
                 return;
             }
             if (localMch.status === 'rejected') {
                 showToast('승인이 거절된 가맹점입니다. 관리자에게 문의해 주세요.');
-                state.enteredMerchantPin = '';
-                updateMerchantPinDots();
-                return;
-            }
-
-            if (!loginToken) {
-                showToast('가맹점 인증에 실패했습니다. 다시 시도해 주세요.');
-                state.enteredMerchantPin = '';
-                updateMerchantPinDots();
                 return;
             }
 
@@ -3943,6 +3937,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             state.merchantToken = loginToken;
             state.currentMerchantId = localMch.id;
+            state.currentMerchantRole = role;
             saveSession();
             showToast('\'' + localMch.name + '\' 가맹점으로 접속되었습니다.');
             renderMerchantDashboard();
@@ -3953,15 +3948,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const categorySelect = document.getElementById('mch-signup-category');
             const bizInput = document.getElementById('mch-signup-biz');
             const accInput = document.getElementById('mch-signup-acc');
-            const pinInput = document.getElementById('mch-signup-pin');
 
             const name = nameInput ? nameInput.value.trim() : '';
             const category = categorySelect ? categorySelect.value : '기타 가맹점';
             const biz = bizInput ? bizInput.value.trim() : '';
             const acc = accInput ? accInput.value.trim() : '';
-            const pin = pinInput ? pinInput.value.trim() : '';
 
-            if (!name || !biz || !acc || !pin) {
+            if (!getCurrentUser() || !state.sessionToken) {
+                showToast('가맹점 등록은 개인 계정으로 로그인한 뒤 가능합니다.');
+                return;
+            }
+
+            if (!name || !biz || !acc) {
                 showToast('모든 가맹점 정보를 올바르게 입력해 주세요.');
                 return;
             }
@@ -3971,8 +3969,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let newMchId;
             try {
-                const { data, error } = await sbClient.rpc('app_signup_merchant', {
-                    p_name: name, p_category: category, p_biz_no: biz, p_account_no: acc, p_pin: pin
+                const { data, error } = await authRpc('app_signup_merchant', {
+                    p_name: name, p_category: category, p_biz_no: biz, p_account_no: acc
                 });
                 if (error) {
                     const msg = error.message || '';
@@ -4011,7 +4009,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (nameInput) nameInput.value = '';
             if (bizInput) bizInput.value = '';
             if (accInput) accInput.value = '';
-            if (pinInput) pinInput.value = '';
 
             showToast('가맹점 가입 신청이 완료되었습니다. 관리자 승인 후 목록에 표시되며 이용할 수 있습니다.');
             switchMerchantAuthMode('login');
@@ -4022,14 +4019,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             state.merchantToken = null;
             if (merchantTokenToRevoke) sbClient.rpc('app_logout', { p_token: merchantTokenToRevoke }).then(() => {}, () => {});
             state.currentMerchantId = null;
-            state.enteredMerchantPin = '';
+            state.currentMerchantRole = null;
+            state.merchantMembers = [];
             const portalEl = document.getElementById('merchant-portal');
             if (portalEl) portalEl.classList.add('hidden');
             state.merchantProducts = [];
             state.merchantOrders = [];
             saveSession();
             cleanupMerchantWaiting();
-            updateMerchantPinDots();
 
             document.getElementById('merchant-auth-container').classList.remove('hidden');
             document.getElementById('merchant-dashboard-container').classList.add('hidden');
@@ -4044,6 +4041,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function openMerchantDashboard() {
+            if (!getCurrentUser() || !state.sessionToken) {
+                showToast('가맹점 대시보드는 로그인 후 이용할 수 있습니다.');
+                return;
+            }
             openModal('modal-pos');
             if (state.currentMerchantId) {
                 renderMerchantDashboard();
@@ -4064,11 +4065,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const modalTitle = document.getElementById('merchant-modal-title');
             const modalSub = document.getElementById('merchant-modal-sub');
             if (modalTitle) modalTitle.innerText = mch.name + ' POS';
-            if (modalSub) modalSub.innerText = '실시간 결제 승인 및 정산 센터';
+            if (modalSub) modalSub.innerText = merchantRoleLabel(state.currentMerchantRole) + ' · 실시간 결제 승인 및 정산 센터';
 
             const dashName = document.getElementById('dash-mch-name');
             const dashBiz = document.getElementById('dash-mch-biz');
             if (dashName) dashName.innerText = mch.name;
+            const membersBtn = document.getElementById('pos-subtab-members-btn');
+            if (membersBtn) membersBtn.classList.toggle('hidden', state.currentMerchantRole !== 'owner');
+            if (state.merchantTab === 'members' && state.currentMerchantRole !== 'owner') state.merchantTab = 'charge';
             if (dashBiz) dashBiz.innerText = mch.category + ' | 사업자 ' + mch.bizNo;
 
             const posCodeInput = document.getElementById('pos-input-code');
@@ -4110,23 +4114,83 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function switchMerchantTab(tab) {
+            if (tab === 'members' && state.currentMerchantRole !== 'owner') tab = 'charge';
             state.merchantTab = tab;
-            const chargeBtn = document.getElementById('pos-subtab-charge-btn');
-            const settleBtn = document.getElementById('pos-subtab-settle-btn');
-            const chargeView = document.getElementById('pos-subview-charge');
-            const settleView = document.getElementById('pos-subview-settle');
+            const names = ['charge', 'settle', 'members'];
+            names.forEach(n => {
+                const btn = document.getElementById('pos-subtab-' + n + '-btn');
+                const view = document.getElementById('pos-subview-' + n);
+                if (btn) btn.className = (n === 'members' && state.currentMerchantRole !== 'owner' ? 'hidden ' : '') +
+                    'flex-1 py-2 text-xs rounded-lg transition-all ' +
+                    (n === tab ? 'font-bold bg-white text-zinc-900 shadow-sm' : 'font-semibold text-zinc-500');
+                if (view) view.classList.toggle('hidden', n !== tab);
+            });
+            if (tab === 'members') loadMerchantMembers();
+        }
 
-            if (tab === 'charge') {
-                chargeBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-white text-zinc-900 shadow-sm transition-all';
-                settleBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-zinc-500 transition-all';
-                chargeView.classList.remove('hidden');
-                settleView.classList.add('hidden');
-            } else {
-                settleBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-white text-zinc-900 shadow-sm transition-all';
-                chargeBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-zinc-500 transition-all';
-                settleView.classList.remove('hidden');
-                chargeView.classList.add('hidden');
+        async function loadMerchantMembers() {
+            const mch = getCurrentMerchant();
+            if (!mch || state.currentMerchantRole !== 'owner') return;
+            const { data, error } = await authRpc('app_merchant_list_members', { p_merchant_id: mch.id });
+            if (error) {
+                if (!isInvalidSessionError(error)) showToast('권한 보유자 목록을 불러오지 못했습니다.');
+                return;
             }
+            state.merchantMembers = Array.isArray(data) ? data : [];
+            renderMerchantMembers();
+        }
+
+        function renderMerchantMembers() {
+            const listEl = document.getElementById('mch-member-list');
+            if (!listEl) return;
+            const rows = state.merchantMembers || [];
+            listEl.innerHTML = rows.length
+                ? rows.map(m => {
+                    const isOwner = m.role === 'owner';
+                    return '<div class="flex items-center justify-between bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs">' +
+                        '<div class="min-w-0"><div class="font-bold text-zinc-800 truncate">' + escapeHtml(m.alias || m.user_id) + '</div>' +
+                        '<div class="text-[10px] text-zinc-400 font-mono truncate">' + escapeHtml(m.user_id) + ' · ' + (isOwner ? '사장님' : '직원') + '</div></div>' +
+                        (isOwner ? '<span class="text-[10px] font-bold text-zinc-400 shrink-0 ml-3">설립자</span>'
+                                 : '<button onclick="removeMerchantMember(' + jsArg(m.user_id) + ')" class="shrink-0 ml-3 text-[11px] font-bold text-red-500 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg">권한 회수</button>') +
+                    '</div>';
+                }).join('')
+                : '<div class="text-center py-6 text-xs text-zinc-400">권한을 부여받은 직원이 없습니다.</div>';
+        }
+
+        async function addMerchantMember() {
+            const mch = getCurrentMerchant();
+            const input = document.getElementById('mch-member-input');
+            const btn = document.getElementById('mch-member-add-btn');
+            const targetId = input ? input.value.trim() : '';
+            if (!mch || state.currentMerchantRole !== 'owner') return;
+            if (!targetId) { showToast('권한을 부여할 사용자 ID를 입력해 주세요.'); return; }
+            if (btn) btn.disabled = true;
+            const { error } = await authRpc('app_merchant_add_member', { p_merchant_id: mch.id, p_member_user_id: targetId });
+            if (btn) btn.disabled = false;
+            if (error) {
+                const msg = String(error.message || '');
+                if (msg.includes('user_not_found')) showToast('해당 ID의 사용자를 찾을 수 없습니다.');
+                else if (msg.includes('already_member')) showToast('이미 권한이 부여된 사용자입니다.');
+                else if (msg.includes('forbidden')) showToast('사장님만 권한을 부여할 수 있습니다.');
+                else if (!isInvalidSessionError(error)) { console.error('권한 부여 오류:', error); showToast('권한 부여 중 오류가 발생했습니다.'); }
+                return;
+            }
+            if (input) input.value = '';
+            showToast('접근 권한을 부여했습니다.');
+            loadMerchantMembers();
+        }
+
+        async function removeMerchantMember(userId) {
+            const mch = getCurrentMerchant();
+            if (!mch || state.currentMerchantRole !== 'owner') return;
+            if (!window.confirm('이 사용자의 가맹점 접근 권한을 회수할까요?')) return;
+            const { error } = await authRpc('app_merchant_remove_member', { p_merchant_id: mch.id, p_member_user_id: userId });
+            if (error) {
+                if (!isInvalidSessionError(error)) { console.error('권한 회수 오류:', error); showToast('권한 회수 중 오류가 발생했습니다.'); }
+                return;
+            }
+            showToast('접근 권한을 회수했습니다.');
+            loadMerchantMembers();
         }
 
         async function openPosConfirm() {
