@@ -129,8 +129,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (user && state.sessionToken) {
                     const { error: profileErr } = await authRpc('app_update_profile', {
                         p_current_account_id: user.currentAccountId || null,
-                        p_purchased_items: user.purchasedItems || [],
-                        p_discord_numeric_id: user.discordNumericId ? String(user.discordNumericId) : null
+                        p_purchased_items: user.purchasedItems || []
                     });
                     if (profileErr && !isInvalidSessionError(profileErr)) console.error('프로필 저장 오류:', profileErr);
                 }
@@ -1040,14 +1039,21 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             try {
-                await sbClient.from('topup_requests').insert({
-                    id: genId('topup'),
-                    user_id: user.id,
-                    account_id: activeAcc.id,
-                    amount: amt,
-                    memo: memo || null,
-                    status: 'pending'
+                const { data: topupData, error: topupErr } = await authRpc('app_request_topup', {
+                    p_account_id: activeAcc.id,
+                    p_amount: amt,
+                    p_memo: memo || null
                 });
+                if (topupErr || !topupData || !topupData.ok) {
+                    const reason = topupData && topupData.reason;
+                    showToast(reason === 'too_many_pending'
+                        ? '처리 대기 중인 충전 요청이 너무 많습니다. 승인 후 다시 요청해 주세요.'
+                        : reason === 'invalid_amount'
+                            ? '충전 금액은 1천만 원 이하로 입력해 주세요.'
+                            : '충전 요청 전송 중 오류가 발생했습니다.');
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = '충전 요청 보내기'; }
+                    return;
+                }
             } catch (err) {
                 console.error('충전 요청 생성 오류:', err);
                 showToast('충전 요청 전송 중 오류가 발생했습니다.');
@@ -1139,6 +1145,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function showAccountLookup() {
             forgetRememberedLoginUser();
+            sbClient.auth.signOut().then(() => {}, () => {});
             state.pendingVerifyUser = null;
             state.verifiedLoginUserId = null;
             state.selectedLoginUserId = null;
@@ -1259,8 +1266,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     (discordIdentity && (discordIdentity.id || (discordIdentity.identity_data && (discordIdentity.identity_data.provider_id || discordIdentity.identity_data.sub)))) ||
                     (authUser.user_metadata && (authUser.user_metadata.provider_id || authUser.user_metadata.sub)) ||
                     null;
-
-                await sbClient.auth.signOut();
 
                 if (!discordNumericId) {
                     showToast('디스코드 계정 정보를 확인하지 못했습니다.');
@@ -1415,7 +1420,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 const found = extractDiscordIdentity(session.user);
-                await sbClient.auth.signOut();
 
                 if (!found.numericId) {
                     showToast('디스코드 계정 정보를 확인하지 못했습니다.');
@@ -1579,7 +1583,20 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!loginResult || !loginResult.ok) {
                 state.enteredPin = '';
                 updatePinDots();
-                if (loginResult && loginResult.reason === 'locked') {
+                const failReason = loginResult && loginResult.reason;
+                if (failReason === 'discord_required' || failReason === 'discord_mismatch' || failReason === 'no_discord_id') {
+                    forgetRememberedLoginUser();
+                    state.pendingVerifyUser = null;
+                    state.verifiedLoginUserId = null;
+                    state.selectedLoginUserId = null;
+                    try { await sbClient.auth.signOut(); } catch (e) {}
+                    renderAuthLoginView();
+                    showToast(failReason === 'no_discord_id'
+                        ? '이 계정에는 디스코드 숫자 ID가 등록되어 있지 않습니다. 관리자에게 문의해 주세요.'
+                        : '디스코드 본인 확인이 필요합니다. 계정을 다시 찾아 인증해 주세요.');
+                    return;
+                }
+                if (failReason === 'locked') {
                     const secs = Number(loginResult.seconds_remaining) || 0;
                     if (secs > 0) {
                         const mins = Math.max(1, Math.ceil(secs / 60));
@@ -1661,7 +1678,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const signupBtn = document.getElementById('signup-submit-btn');
             if (signupBtn) signupBtn.disabled = true;
 
-            let newUserId, newAccountId, newAccNo;
+            let newUserId, newAccountId, newAccNo, newDiscordNumericId;
             try {
                 const { data, error } = await sbClient.rpc('app_signup', {
                     p_alias: alias, p_discord: discord, p_uid: uid, p_pin: pin
@@ -1672,6 +1689,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         showToast('이미 가입된 디스코드 ID입니다.');
                     } else if (msg.includes('uid_taken')) {
                         showToast('이미 사용 중인 고유번호입니다. 다른 번호를 입력해 주세요.');
+                    } else if (msg.includes('discord_required')) {
+                        showToast('디스코드 연동이 필요합니다. 디스코드 연동 버튼을 눌러 다시 인증해 주세요.');
+                        state.signupDiscordNumericId = null;
+                        updateSignupDiscordStatus();
                     } else if (msg.includes('invalid_alias')) {
                         showToast('가명은 20자 이하로, 특수문자(< > \" \' ` \\) 없이 입력해 주세요.');
                     } else {
@@ -1685,6 +1706,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 newUserId = data.user_id;
                 newAccountId = data.account.id;
                 newAccNo = data.account.account_no;
+                newDiscordNumericId = data.discord_numeric_id || null;
                 state.sessionToken = data.token;
             } catch (err) {
                 console.error('회원가입 오류:', err);
@@ -1711,7 +1733,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 ],
                 attendanceHistory: {},
                 purchasedItems: [],
-                discordNumericId: state.signupDiscordNumericId
+                discordNumericId: newDiscordNumericId || state.signupDiscordNumericId
             };
 
             state.users.push(newUser);
@@ -1722,7 +1744,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             addKnownAccountId(newUser.id);
             saveAppData();
             subscribeToRealtimeUpdates();
-            notifyUser(newUserId, '회원가입을 환영합니다!', '웰컴 지원금 100,000원이 입금되었습니다.');
 
             document.getElementById('auth-screen').classList.add('hidden-auth');
             renderApp();
@@ -2407,7 +2428,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     to_not_found: '받는 계좌 정보를 확인할 수 없습니다.',
                     from_frozen: '정지된 계좌입니다. 이체를 이용할 수 없습니다.',
                     to_frozen: '받는 분의 계좌가 정지되어 이체할 수 없습니다.',
-                    insufficient_balance: '계좌 잔액이 부족합니다.'
+                    insufficient_balance: '계좌 잔액이 부족합니다.',
+                    rate_limited: '짧은 시간에 너무 많은 사람에게 이체할 수 없습니다. 잠시 후 다시 시도해 주세요.'
                 }[result && result.reason] || '이체를 처리할 수 없습니다.';
 
                 showToast(reasonMsg);
@@ -2828,22 +2850,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const newName = document.getElementById('edit-user-name').value.trim();
             const newDiscord = document.getElementById('edit-user-discord').value.trim();
-            const numIdInput = document.getElementById('edit-user-discord-numeric-id');
-            const newNumericId = numIdInput ? numIdInput.value.trim() : '';
 
             if (!newName) {
                 showToast('이름을 입력해 주세요.');
                 return;
             }
 
-            if (newNumericId && !/^\d{15,25}$/.test(newNumericId)) {
-                showToast('디스코드 숫자 ID는 숫자로만 입력해 주세요 (설정 → 고급 → 개발자 모드 켜고, 프로필 우클릭 → ID 복사).');
-                return;
-            }
-
             user.alias = newName;
             if (newDiscord) user.discord = newDiscord;
-            user.discordNumericId = newNumericId;
 
             saveAppData();
             closeModal('modal-profile');
@@ -3836,8 +3850,23 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        async function adminRpc(name, args) {
+            const res = await authRpc('app_admin_' + name, args);
+            if (res.error) return res;
+            const row = Array.isArray(res.data) ? res.data[0] : res.data;
+            const hardReasons = ['invalid_credentials', 'not_admin', 'cannot_delete_self', 'account_not_found', 'user_not_found', 'locked'];
+            if (row && row.ok === false && hardReasons.includes(row.reason)) {
+                return { data: null, error: { message: row.reason, seconds_remaining: row.seconds_remaining } };
+            }
+            return res;
+        }
+
         function adminRpcErrorMessage(error) {
             const msg = (error && error.message) || '';
+            if (msg.includes('locked')) {
+                const mins = Math.max(1, Math.ceil(((error && error.seconds_remaining) || 0) / 60));
+                return 'PIN을 5회 틀려 관리자 기능이 잠겼습니다. ' + mins + '분 후 다시 시도해 주세요.';
+            }
             if (msg.includes('not_admin')) return '관리자 권한이 없습니다.';
             if (msg.includes('invalid_credentials')) return 'PIN이 일치하지 않습니다.';
             if (msg.includes('cannot_delete_self')) return '본인 계정은 삭제할 수 없습니다.';
@@ -3970,14 +3999,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!adminPin) return;
 
             try {
-                const { data: reqRow } = await sbClient
-                    .from('topup_requests')
-                    .select('user_id, amount')
-                    .eq('id', requestId)
-                    .single();
+                const reqRow = { amount: 0 };
 
-                const { data: rpcData, error: rpcErr } = await sbClient.rpc('admin_review_topup', {
-                    p_admin_id: admin.id,
+                const { data: rpcData, error: rpcErr } = await adminRpc('review_topup', {
                     p_admin_pin: adminPin,
                     p_request_id: requestId,
                     p_decision: decision
@@ -4000,15 +4024,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                if (reqRow) {
-                    if (decision === 'approved') {
-                        notifyUser(reqRow.user_id, '잔액 충전 완료', formatNumber(reqRow.amount) + '원이 충전되었습니다.');
-                        showToast(formatNumber(reqRow.amount) + '원 충전을 승인했습니다.');
-                    } else {
-                        notifyUser(reqRow.user_id, '충전 요청이 거절되었습니다', formatNumber(reqRow.amount) + '원 충전 요청이 거절되었습니다. 관리자에게 문의해 주세요.');
-                        showToast('충전 요청을 거절했습니다.');
-                    }
-                }
+                showToast(decision === 'approved' ? '충전을 승인했습니다.' : '충전 요청을 거절했습니다.');
 
                 renderAdminTopupRequests();
                 refreshServerStatus();
@@ -4087,8 +4103,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             try {
-                const { data: rpcData, error: rpcErr } = await sbClient.rpc('admin_review_merchant', {
-                    p_admin_id: admin.id,
+                const { data: rpcData, error: rpcErr } = await adminRpc('review_merchant', {
                     p_admin_pin: adminPin,
                     p_merchant_id: merchantId,
                     p_decision: decision
@@ -4108,7 +4123,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 const removed = decision === 'rejected' && wasPending;
                 if (removed) {
-                    await removeRejectedMerchant(merchantId);
                     state.merchants = state.merchants.filter(m => m.id !== merchantId);
                     closeAdminMerchantDetail();
                 }
@@ -4142,11 +4156,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const accounts = orderAccountRows(accountsRaw || [], null);
                 const accountIds = (accounts || []).map(a => a.id);
 
-                const { data: autoTransfers } = await sbClient
-                    .from('auto_transfers')
-                    .select('*')
-                    .eq('user_id', userId)
-                    .order('next_run_date', { ascending: true });
+                const { data: autoTransfers } = await authRpc('app_admin_user_auto_transfers', { p_user_id: userId });
 
                 let transactions = [];
                 if (accountIds.length) {
@@ -4423,10 +4433,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!adminPin) return;
 
             try {
-                const { data: accData } = await sbClient.from('accounts').select('user_id, account_no').eq('id', accountId).single();
-
-                const { error } = await sbClient.rpc('admin_set_account_frozen', {
-                    p_admin_id: admin.id,
+                const { error } = await adminRpc('set_account_frozen', {
                     p_admin_pin: adminPin,
                     p_account_id: accountId,
                     p_frozen: newFrozenState
@@ -4439,10 +4446,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 showToast(newFrozenState ? '계좌를 정지했습니다.' : '계좌 정지를 해제했습니다.');
-                if (accData && accData.user_id) {
-                    notifyUser(accData.user_id, newFrozenState ? '계좌가 정지되었습니다' : '계좌 정지가 해제되었습니다',
-                        (accData.account_no || '') + (newFrozenState ? ' 계좌 이용이 정지되었습니다. 문의사항은 관리자에게 연락해 주세요.' : ' 계좌를 다시 정상적으로 이용하실 수 있습니다.'));
-                }
                 const searchInput = document.getElementById('admin-user-search');
                 renderAdminUserList(searchInput ? searchInput.value : '');
                 if (refreshUserId) openAdminUserDetail(refreshUserId);
@@ -4466,8 +4469,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!adminPin) return;
 
             try {
-                const { error } = await sbClient.rpc('admin_delete_user', {
-                    p_admin_id: admin.id,
+                const { error } = await adminRpc('delete_user', {
                     p_admin_pin: adminPin,
                     p_target_user_id: userId
                 });
@@ -4506,8 +4508,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let adjustResult;
             try {
-                const { data: rpcData, error: rpcErr } = await sbClient.rpc('admin_adjust_balance', {
-                    p_admin_id: admin.id,
+                const { data: rpcData, error: rpcErr } = await adminRpc('adjust_balance', {
                     p_admin_pin: adminPin,
                     p_account_id: accountId,
                     p_delta: sign * amt
@@ -4536,17 +4537,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const delta = sign * amt;
 
             try {
-                await sbClient.from('transactions').insert({
-                    id: genId('tx'),
-                    account_id: accountId,
-                    title: sign > 0 ? '관리자 지급' : '관리자 차감',
-                    counterparty_name: 'KDB Pay 관리자',
-                    amount: delta,
-                    type: sign > 0 ? 'deposit' : 'withdraw',
-                    date_label: '방금 전'
-                });
-                notifyUser(userId, sign > 0 ? '관리자 지급 안내' : '관리자 차감 안내', formatNumber(amt) + '원이 ' + (sign > 0 ? '지급' : '차감') + '되었습니다.');
-
                 showToast(formatNumber(amt) + '원이 ' + (sign > 0 ? '지급' : '차감') + '되었습니다.');
                 const searchInput = document.getElementById('admin-user-search');
                 renderAdminUserList(searchInput ? searchInput.value : '');
@@ -4836,16 +4826,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const user = getCurrentUser();
             if (!user) return;
             try {
-                const { data, error } = await sbClient
-                    .from('auto_transfers')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('next_run_date', { ascending: true });
+                const { data, error } = await authRpc('app_list_auto_transfers', {});
                 if (error) {
                     console.error('자동이체 조회 오류:', error);
                     return;
                 }
-                state.autoTransfers = data || [];
+                state.autoTransfers = Array.isArray(data) ? data : [];
                 renderAutoTransferBadge();
             } catch (err) {
                 console.error('자동이체 조회 오류:', err);
@@ -5025,33 +5011,29 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const dayOfWeek = cycle === 'weekly' ? parseInt(document.getElementById('at-day-of-week').value, 10) : null;
             const dayOfMonth = cycle === 'monthly' ? parseInt(document.getElementById('at-day-of-month').value, 10) : null;
-            const firstRun = cycle === 'weekly' ? atFirstRunWeekly(dayOfWeek) : atFirstRunMonthly(dayOfMonth);
+            let firstRun = cycle === 'weekly' ? atFirstRunWeekly(dayOfWeek) : atFirstRunMonthly(dayOfMonth);
 
             try {
-                const { error } = await sbClient.from('auto_transfers').insert({
-                    id: genId('auto'),
-                    user_id: user.id,
-                    from_account_id: activeAcc.id,
-                    to_user_id: match.userId,
-                    to_account_id: match.accountId,
-                    to_alias: match.alias,
-                    to_account_no: match.accountNo || '',
-                    amount: amount,
-                    memo: memo || null,
-                    cycle: cycle,
-                    day_of_week: dayOfWeek,
-                    day_of_month: dayOfMonth,
-                    next_run_date: firstRun,
-                    active: true,
-                    fail_count: 0
+                const { data: createData, error } = await authRpc('app_create_auto_transfer', {
+                    p_from_account: activeAcc.id,
+                    p_to_account: match.accountId,
+                    p_amount: amount,
+                    p_memo: memo || null,
+                    p_cycle: cycle,
+                    p_day_of_week: dayOfWeek,
+                    p_day_of_month: dayOfMonth
                 });
 
-                if (error) {
-                    console.error('자동이체 등록 오류:', error);
-                    showToast('자동이체 등록 중 오류가 발생했습니다.');
+                if (error || !createData || !createData.ok) {
+                    console.error('자동이체 등록 오류:', error || createData);
+                    const reason = createData && createData.reason;
+                    showToast(reason === 'limit_reached'
+                        ? '자동이체는 최대 20개까지 등록할 수 있습니다.'
+                        : '자동이체 등록 중 오류가 발생했습니다.');
                     restoreBtn();
                     return;
                 }
+                firstRun = createData.first_run;
             } catch (err) {
                 console.error('자동이체 등록 오류:', err);
                 showToast('자동이체 등록 중 오류가 발생했습니다.');
@@ -5071,20 +5053,15 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!row) return;
 
             const newActive = !row.active;
-            const patch = { active: newActive };
-
-            if (newActive && row.next_run_date <= atToday()) {
-                patch.next_run_date = row.cycle === 'weekly'
-                    ? atFirstRunWeekly(row.day_of_week)
-                    : atFirstRunMonthly(row.day_of_month);
-            }
+            const patch = {};
 
             try {
-                const { error } = await sbClient.from('auto_transfers').update(patch).eq('id', id);
-                if (error) {
+                const { data: toggleData, error } = await authRpc('app_set_auto_transfer_active', { p_id: id, p_active: newActive });
+                if (error || !toggleData || !toggleData.ok) {
                     showToast('상태 변경 중 오류가 발생했습니다.');
                     return;
                 }
+                if (toggleData.next_run_date) patch.next_run_date = toggleData.next_run_date;
             } catch (err) {
                 console.error('자동이체 상태 변경 오류:', err);
                 showToast('상태 변경 중 오류가 발생했습니다.');
@@ -5105,7 +5082,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!confirmed) return;
 
             try {
-                const { error } = await sbClient.from('auto_transfers').delete().eq('id', id);
+                const { error } = await authRpc('app_delete_auto_transfer', { p_id: id });
                 if (error) {
                     showToast('해지 중 오류가 발생했습니다.');
                     return;
@@ -5125,130 +5102,31 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const user = getCurrentUser();
             if (!user) return;
 
-            let rows = [];
+            let summary;
             try {
-                const { data, error } = await sbClient
-                    .from('auto_transfers')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .eq('active', true)
-                    .lte('next_run_date', atToday());
-                if (error || !data) return;
-                rows = data;
+                const { data, error } = await authRpc('app_run_due_auto_transfers', {});
+                if (error || !data) {
+                    if (error) console.error('자동이체 실행 오류:', error);
+                    return;
+                }
+                summary = data;
             } catch (err) {
-                console.error('자동이체 조회 오류:', err);
+                console.error('자동이체 실행 오류:', err);
                 return;
             }
 
-            if (!rows.length) return;
+            const results = Array.isArray(summary.results) ? summary.results : [];
+            if (!results.length) return;
 
-            let executedCount = 0;
-            for (const row of rows) {
-                let guard = 0;
-                while (row.next_run_date <= atToday() && guard < AUTO_TRANSFER_MAX_CATCHUP) {
-                    guard++;
-                    const proceeded = await runSingleAutoTransfer(row);
-                    if (!proceeded) break;
-                    executedCount++;
-                }
-            }
+            results.forEach(r => {
+                if (r.ok) showToast('자동이체 ' + formatNumber(r.amount) + '원 → ' + r.to_alias);
+                else showToast('자동이체 실패 (' + r.to_alias + '): ' + r.message);
+            });
 
-            if (executedCount > 0) {
-                await loadUserFinancialData(user.id);
-                renderApp();
-                refreshNotifBadge();
-            }
+            await loadUserFinancialData(user.id);
+            renderApp();
+            refreshNotifBadge();
             await loadAutoTransfers();
-        }
-
-        async function runSingleAutoTransfer(row) {
-            const user = getCurrentUser();
-            if (!user) return false;
-
-            const dueDate = row.next_run_date;
-            const nextDate = atNextRunDate(row);
-            const amount = row.amount;
-
-            let claimed = false;
-            try {
-                const { data, error } = await sbClient
-                    .from('auto_transfers')
-                    .update({ next_run_date: nextDate, last_run_at: new Date().toISOString() })
-                    .eq('id', row.id)
-                    .eq('next_run_date', dueDate)
-                    .select();
-                if (error) {
-                    console.error('자동이체 선점 오류:', error);
-                    return false;
-                }
-                claimed = !!(data && data.length);
-            } catch (err) {
-                console.error('자동이체 선점 오류:', err);
-                return false;
-            }
-
-            row.next_run_date = nextDate;
-            if (!claimed) return false;
-
-            const markFailure = async (reason) => {
-                try {
-                    await sbClient.from('auto_transfers')
-                        .update({ last_result: reason, fail_count: (row.fail_count || 0) + 1 })
-                        .eq('id', row.id);
-                } catch (err) {
-                    console.error('자동이체 실패 기록 오류:', err);
-                }
-                row.fail_count = (row.fail_count || 0) + 1;
-                row.last_result = reason;
-                notifyUser(user.id, '자동이체 실패',
-                    row.to_alias + '님 ' + formatNumber(amount) + '원 (' + dueDate + ') · ' + reason);
-                showToast('자동이체 실패 (' + row.to_alias + '): ' + reason);
-            };
-
-            try {
-                const { data: rpcData, error: rpcErr } = await authRpc('app_transfer', {
-                    p_from_account: row.from_account_id,
-                    p_to_account: row.to_account_id,
-                    p_amount: amount,
-                    p_memo: row.memo || null,
-                    p_label: 'auto',
-                    p_date_label: dueDate
-                });
-                if (rpcErr) {
-                    console.error('자동이체 실행 오류:', rpcErr);
-                    await markFailure('처리 중 오류가 발생했습니다');
-                    return true;
-                }
-
-                const result = rpcData && rpcData[0];
-                if (!result || !result.ok) {
-                    const reasonMsg = {
-                        from_not_found: '출금 계좌를 찾을 수 없습니다',
-                        to_not_found: '받는 계좌를 찾을 수 없습니다',
-                        from_frozen: '출금 계좌가 정지되었습니다',
-                        to_frozen: '받는 분의 계좌가 정지되었습니다',
-                        insufficient_balance: '잔액이 부족합니다',
-                        same_account: '동일 계좌로는 자동이체할 수 없습니다',
-                        invalid_amount: '이체 금액이 올바르지 않습니다'
-                    }[result && result.reason] || '자동이체를 처리할 수 없습니다';
-                    await markFailure(reasonMsg);
-                    return true;
-                }
-
-                await sbClient.from('auto_transfers')
-                    .update({ last_result: '성공', fail_count: 0 })
-                    .eq('id', row.id);
-                row.fail_count = 0;
-                row.last_result = '성공';
-
-                showToast('자동이체 ' + formatNumber(amount) + '원 → ' + row.to_alias);
-
-                return true;
-            } catch (err) {
-                console.error('자동이체 실행 오류:', err);
-                await markFailure('처리 중 오류가 발생했습니다');
-                return true;
-            }
         }
 
         const SETTINGS_KEY = 'kdb_pay_settings_v1';
@@ -5508,7 +5386,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     const el = document.getElementById(id); if (el) el.value = '';
                 });
                 showToast('PIN 번호가 변경되었습니다. 다음 로그인부터 새 PIN을 사용하세요.');
-                notifyUser(user.id, 'PIN 번호가 변경되었습니다', '본인이 변경한 것이 아니라면 즉시 관리자에게 문의해 주세요.');
             } catch (err) {
                 console.error('PIN 변경 오류:', err);
                 showChangePinError('PIN 변경 중 오류가 발생했습니다. 네트워크를 확인해 주세요.');
