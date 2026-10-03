@@ -4100,9 +4100,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             if (!lookup || !lookup.ok) {
-                showToast(lookup && lookup.reason === 'frozen'
-                    ? '고객의 계좌가 정지되어 결제할 수 없습니다.'
-                    : '유효하지 않거나 만료된 결제 코드입니다. 고객에게 코드를 다시 확인해 주세요.');
+                showToast(lookup && lookup.reason === 'rate_limited'
+                    ? '결제 코드 입력 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요.'
+                    : lookup && lookup.reason === 'frozen'
+                        ? '고객의 계좌가 정지되어 결제할 수 없습니다.'
+                        : '유효하지 않거나 만료된 결제 코드입니다. 고객에게 코드를 다시 확인해 주세요.');
                 return;
             }
 
@@ -4143,7 +4145,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 });
                 if (reqErr || !reqData || !reqData.ok) {
                     const reason = reqData && reqData.reason;
-                    showToast(reason === 'invalid_code'
+                    showToast(reason === 'rate_limited'
+                        ? '결제 코드 입력 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요.'
+                        : reason === 'invalid_code'
                         ? '유효하지 않거나 만료된 결제 코드입니다.'
                         : reason === 'frozen'
                             ? '고객의 계좌가 정지되어 결제할 수 없습니다.'
