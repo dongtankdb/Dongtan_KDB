@@ -151,27 +151,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         async function loadAppData() {
             const knownIds = getKnownAccountIds();
 
-            const [countRes, knownRes, merchantsRes, merchantTotalRes] = await Promise.all([
-                sbClient.from('users_public').select('id', { count: 'exact', head: true }),
-                knownIds.length
-                    ? sbClient.from('users_public').select('id, alias, discord').in('id', knownIds)
-                    : Promise.resolve({ data: [], error: null }),
-                sbClient.from('merchants_public')
-                    .select('id, name, category, status')
-                    .or('status.eq.approved,status.is.null'),
-                sbClient.from('merchants_public').select('id', { count: 'exact', head: true })
-            ]);
+            const { data, error: firstErr } = await sbClient.rpc('app_public_bootstrap', { p_known_ids: knownIds });
 
-            const firstErr = countRes.error || knownRes.error || merchantsRes.error || merchantTotalRes.error;
-            if (firstErr) {
+            if (firstErr || !data) {
                 console.error('Supabase 로드 오류:', firstErr);
                 showToast('서버에서 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
                 return;
             }
 
-            state.hasUsers = (countRes.count || 0) > 0;
+            state.hasUsers = !!data.has_users;
 
-            state.users = (knownRes.data || []).map(u => ({
+            state.users = (data.known_users || []).map(u => ({
                 id: u.id,
                 alias: u.alias,
                 discord: u.discord,
@@ -179,7 +169,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 transactions: []
             }));
 
-            const merchants = merchantsRes.data;
+            const merchants = data.merchants;
             if (merchants && merchants.length) {
                 state.merchants = merchants.map(m => ({
                     id: m.id,
@@ -192,7 +182,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     status: m.status || 'approved',
                     salesHistory: []
                 }));
-            } else if ((merchantTotalRes.count || 0) === 0) {
+            } else if ((data.merchant_total || 0) === 0) {
                 state.merchants = JSON.parse(JSON.stringify(defaultMerchants));
                 saveAppData(state.merchants.map(m => m.id));
             } else {
@@ -202,12 +192,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         async function loadMerchantSales(mch) {
             try {
-                const { data, error } = await sbClient
-                    .from('merchant_sales')
-                    .select('id, title, amount, fee_amount, settled, date_label, created_at')
-                    .eq('merchant_id', mch.id)
-                    .order('created_at', { ascending: false })
-                    .limit(200);
+                const { data, error } = await merchantRpc('app_merchant_sales', { p_limit: 200 });
 
                 if (error) {
                     console.error('매출 내역 조회 오류:', error);
@@ -234,36 +219,19 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const user = state.users.find(u => u.id === userId);
             if (!user) return;
 
-            const { data: accounts, error: aErr } = await sbClient
-                .from('accounts')
-                .select('id, name, account_no, balance, is_frozen, sort_order, created_at')
-                .eq('user_id', userId);
+            const { data: myData, error: aErr } = await authRpc('app_my_data');
 
-            if (aErr) {
+            if (aErr || !myData) {
                 console.error('계좌 조회 오류:', aErr);
                 showToast('계좌 정보를 불러오지 못했습니다.');
                 return;
             }
 
-            const orderedRows = orderAccountRows(accounts || [], getLocalAccountOrder(userId));
+            const orderedRows = orderAccountRows(myData.accounts || [], getLocalAccountOrder(userId));
             user.accounts = orderedRows.map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance, isFrozen: a.is_frozen || false }));
             setLocalAccountOrder(userId, user.accounts.map(a => a.id));
 
-            const accountIds = user.accounts.map(a => a.id);
-            let transactions = [];
-            if (accountIds.length) {
-                const { data: txData, error: tErr } = await sbClient
-                    .from('transactions')
-                    .select('id, account_id, title, counterparty_name, memo, date_label, created_at, amount, type')
-                    .in('account_id', accountIds)
-                    .order('created_at', { ascending: false });
-
-                if (tErr) {
-                    console.error('거래내역 조회 오류:', tErr);
-                } else {
-                    transactions = txData || [];
-                }
-            }
+            const transactions = myData.transactions || [];
 
             user.transactions = transactions.map(t => ({
                 id: t.id,
@@ -430,7 +398,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         async function refreshMerchantFromServer(merchantId) {
             try {
-                const { data } = await sbClient.from('merchants_public').select('*').eq('id', merchantId).single();
+                const { data } = await merchantRpc('app_merchant_state');
                 const mch = state.merchants.find(m => m.id === merchantId);
                 if (!data || !mch) return;
                 mch.unsettledBalance = data.unsettled_balance || 0;
@@ -488,11 +456,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!user || !badge) return;
 
             try {
-                const { count, error } = await sbClient
-                    .from('notifications')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('user_id', user.id)
-                    .eq('read', false);
+                const { data: count, error } = await authRpc('app_unread_notif_count');
 
                 if (error) {
                     console.error('알림 개수 조회 오류:', error);
@@ -519,12 +483,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             openModal('modal-notifications');
 
             try {
-                const { data, error } = await sbClient
-                    .from('notifications')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false })
-                    .limit(50);
+                const { data, error } = await authRpc('app_list_notifications', { p_limit: 50 });
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">알림을 불러오지 못했습니다.</div>';
@@ -552,46 +511,76 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
-        let realtimeChannel = null;
+        const USER_POLL_INTERVAL_MS = 3000;
+        let userPollTimer = null;
+        let userPollBusy = false;
 
         function subscribeToRealtimeUpdates() {
-            if (realtimeChannel) {
-                sbClient.removeChannel(realtimeChannel);
-                realtimeChannel = null;
-            }
+            unsubscribeRealtimeUpdates();
             const user = getCurrentUser();
-            if (!user) return;
-
-            const ownAccountIds = (user.accounts || []).map(a => a.id).filter(id => /^[A-Za-z0-9_-]+$/.test(id));
-            const txFilter = ownAccountIds.length ? 'account_id=in.(' + ownAccountIds.join(',') + ')' : 'account_id=eq.__none__';
-
-            realtimeChannel = sbClient
-                .channel('realtime-' + user.id)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts', filter: 'user_id=eq.' + user.id }, handleAccountRealtimeChange)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: txFilter }, handleTransactionRealtimeChange)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'payment_requests', filter: 'user_id=eq.' + user.id }, handlePaymentRequestInsert)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + user.id }, refreshNotifBadge)
-                .subscribe();
-
-            refreshNotifBadge();
+            if (!user || !state.sessionToken) return;
+            userPollTimer = setInterval(pollUserUpdates, USER_POLL_INTERVAL_MS);
+            pollUserUpdates();
         }
 
         function unsubscribeRealtimeUpdates() {
-            if (realtimeChannel) {
-                sbClient.removeChannel(realtimeChannel);
-                realtimeChannel = null;
+            if (userPollTimer) {
+                clearInterval(userPollTimer);
+                userPollTimer = null;
             }
+            userPollBusy = false;
         }
 
-        function handleAccountRealtimeChange(payload) {
-            const row = payload.new;
-            const user = getCurrentUser();
-            if (!row || !user) return;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && userPollTimer) pollUserUpdates();
+        });
 
-            const acc = (user.accounts || []).find(a => a.id === row.id);
-            if (acc && acc.balance !== row.balance) {
-                acc.balance = row.balance;
-                renderApp();
+        async function pollUserUpdates() {
+            if (userPollBusy || document.visibilityState === 'hidden') return;
+            const startUser = getCurrentUser();
+            if (!startUser || !state.sessionToken) return;
+
+            userPollBusy = true;
+            try {
+                const { data, error } = await authRpc('app_my_poll');
+                if (error || !data) return;
+
+                const user = getCurrentUser();
+                if (!user || user.id !== startUser.id) return;
+
+                let changed = false;
+                (data.accounts || []).forEach(row => {
+                    const acc = (user.accounts || []).find(a => a.id === row.id);
+                    if (!acc) return;
+                    const frozen = !!row.is_frozen;
+                    if (acc.balance !== row.balance || !!acc.isFrozen !== frozen) {
+                        acc.balance = row.balance;
+                        acc.isFrozen = frozen;
+                        changed = true;
+                    }
+                });
+                if (changed) renderApp();
+
+                (data.recent_transactions || []).slice().reverse().forEach(row => {
+                    handleTransactionRealtimeChange({ new: row });
+                });
+
+                handlePendingPaymentFromPoll(data.pending_payment);
+
+                const badge = document.getElementById('notif-badge');
+                const unread = data.unread_count || 0;
+                if (badge) {
+                    if (unread > 0) {
+                        badge.innerText = unread > 99 ? '99+' : String(unread);
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error('실시간 갱신 오류:', err);
+            } finally {
+                userPollBusy = false;
             }
         }
 
@@ -626,12 +615,16 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         let activePaymentRequest = null;
 
-        function handlePaymentRequestInsert(payload) {
-            const row = payload.new;
+        function handlePendingPaymentFromPoll(row) {
             const user = getCurrentUser();
-            if (!row || !user) return;
-            if (row.user_id !== user.id) return;
-            if (row.status !== 'pending') return;
+            if (!user) return;
+
+            if (!row) {
+                if (activePaymentRequest) hidePaymentRequestBanner();
+                return;
+            }
+            if (row.user_id !== user.id || row.status !== 'pending') return;
+            if (activePaymentRequest && activePaymentRequest.id === row.id) return;
 
             activePaymentRequest = row;
             showPaymentRequestBanner(row);
@@ -2861,93 +2854,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         async function findRecipientAccountLive(query) {
             try {
-                let searchQuery = query;
-                const digitsOnly = query.replace(/[\s-]/g, '');
-                if (/^\d{9}$/.test(digitsOnly)) {
-                    searchQuery = '110-' + digitsOnly.slice(0, 3) + '-' + digitsOnly.slice(3);
-                }
-
-                const { data: accByNo, error: accErr } = await sbClient
-                    .from('accounts')
-                    .select('id, user_id, account_no, is_frozen')
-                    .eq('account_no', searchQuery)
-                    .limit(1);
-
-                if (accErr) {
-                    console.error('수신자 조회 오류:', accErr);
+                const { data, error } = await authRpc('app_find_recipient', { p_query: String(query || '') });
+                if (error || !data) {
+                    if (error && !isInvalidSessionError(error)) console.error('수신자 조회 오류:', error);
                     return 'error';
                 }
-
-                if (accByNo && accByNo.length) {
-                    const acc = accByNo[0];
-                    const { data: owner, error: ownerErr } = await sbClient
-                        .from('users_public')
-                        .select('id, alias')
-                        .eq('id', acc.user_id)
-                        .single();
-                    if (!ownerErr && owner) {
-                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, isFrozen: acc.is_frozen || false };
-                    }
-                }
-
-                const rawQuery = String(query || '').trim();
-                const noAt = rawQuery.replace(/^@/, '');
-                const digitsQuery = rawQuery.replace(/[\s-]/g, '');
-                const isDigits = /^\d+$/.test(digitsQuery);
-
-                const clauses = ['alias.eq.' + pgQuoteFilterValue(rawQuery), 'discord.eq.' + pgQuoteFilterValue(rawQuery)];
-                if (noAt && noAt !== rawQuery) clauses.push('discord.eq.' + pgQuoteFilterValue(noAt));
-                if (isDigits) {
-                    clauses.push('uid.eq.' + pgQuoteFilterValue(digitsQuery));
-                }
-
-                const { data: foundUsers, error: nameErr } = await sbClient
-                    .from('users_public')
-                    .select('id, alias, current_account_id')
-                    .or(clauses.join(','))
-                    .limit(5);
-
-                if (nameErr) {
-                    console.error('수신자 조회 오류:', nameErr);
-                    return 'error';
-                }
-
-                const seenUserIds = new Set();
-                const nameMatches = (foundUsers || []).filter(u => {
-                    if (seenUserIds.has(u.id)) return false;
-                    seenUserIds.add(u.id);
-                    return true;
-                });
-
-                if (nameMatches && nameMatches.length > 1) return 'ambiguous';
-
-                if (nameMatches && nameMatches.length === 1) {
-                    const owner = nameMatches[0];
-                    let acc = null;
-
-                    if (owner.current_account_id) {
-                        const { data: accById } = await sbClient
-                            .from('accounts')
-                            .select('id, user_id, account_no, is_frozen')
-                            .eq('id', owner.current_account_id)
-                            .single();
-                        acc = accById || null;
-                    }
-
-                    if (!acc) {
-                        const { data: accByUser } = await sbClient
-                            .from('accounts')
-                            .select('id, user_id, account_no, is_frozen')
-                            .eq('user_id', owner.id)
-                            .limit(1);
-                        acc = (accByUser && accByUser[0]) || null;
-                    }
-
-                    if (acc) {
-                        return { userId: owner.id, alias: owner.alias, accountId: acc.id, accountNo: acc.account_no, isFrozen: acc.is_frozen || false };
-                    }
-                }
-
+                if (data.status === 'ambiguous') return 'ambiguous';
+                if (data.status === 'ok' && data.match) return data.match;
                 return null;
             } catch (err) {
                 console.error('수신자 조회 오류:', err);
@@ -2961,21 +2874,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         const TRANSFER_RATE_MAX_RECIPIENTS = 3;
 
         async function checkTransferRateLimit(accountId, newRecipientAlias) {
-            const sinceIso = new Date(Date.now() - TRANSFER_RATE_WINDOW_MINUTES * 60 * 1000).toISOString();
-
-            const { data: recentTx, error } = await sbClient
-                .from('transactions')
-                .select('counterparty_name, created_at')
-                .eq('account_id', accountId)
-                .eq('type', 'transfer')
-                .gte('created_at', sinceIso);
+            const { data: recentNames, error } = await authRpc('app_recent_transfer_recipients', {
+                p_account_id: accountId,
+                p_minutes: TRANSFER_RATE_WINDOW_MINUTES
+            });
 
             if (error) {
                 console.error('이체 한도 체크 오류:', error);
                 return { allowed: true };
             }
 
-            const distinctRecipients = new Set((recentTx || []).map(t => t.counterparty_name).filter(Boolean));
+            const distinctRecipients = new Set((recentNames || []).filter(Boolean));
 
             if (distinctRecipients.has(newRecipientAlias)) {
                 return { allowed: true };
@@ -3011,8 +2920,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let freshSenderAcc;
             try {
-                const { data, error } = await sbClient.from('accounts').select('balance, is_frozen').eq('id', activeAcc.id).single();
-                if (error || !data) {
+                const { data, error } = await authRpc('app_my_account_state', { p_account_id: activeAcc.id });
+                if (error || !data || !data.ok) {
                     showToast('계좌 상태를 확인하는 중 오류가 발생했습니다.');
                     return;
                 }
@@ -3581,11 +3490,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         async function syncAttendanceFromServer(user) {
             try {
-                const { data, error } = await sbClient
-                    .from('users_public')
-                    .select('points, attendance_history')
-                    .eq('id', user.id)
-                    .single();
+                const { data, error } = await authRpc('app_my_attendance');
                 if (error || !data) return false;
                 user.points = data.points || 0;
                 user.attendanceHistory = data.attendance_history || {};
@@ -3894,9 +3799,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
+            state.merchantToken = loginToken;
             await loadMerchantSales(localMch);
 
-            state.merchantToken = loginToken;
             state.currentMerchantId = localMch.id;
             state.currentMerchantRole = role;
             saveSession();
@@ -4179,59 +4084,32 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             showToast('결제 코드를 확인하는 중입니다...');
 
-            let codeRow;
+            let lookup;
             try {
-                const nowIso = new Date().toISOString();
-                const { data, error } = await sbClient
-                    .from('payment_codes')
-                    .select('id, user_id, account_id')
-                    .eq('code', code)
-                    .eq('used', false)
-                    .gt('expires_at', nowIso)
-                    .order('created_at', { ascending: false })
-                    .limit(1);
-
+                const { data, error } = await merchantRpc('app_merchant_lookup_pay_code', { p_code: code });
                 if (error) {
                     console.error('결제 코드 조회 오류:', error);
                     showToast('결제 코드 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                codeRow = data && data[0];
+                lookup = data;
             } catch (err) {
                 console.error('결제 코드 조회 오류:', err);
                 showToast('결제 코드 확인 중 오류가 발생했습니다.');
                 return;
             }
 
-            if (!codeRow) {
-                showToast('유효하지 않거나 만료된 결제 코드입니다. 고객에게 코드를 다시 확인해 주세요.');
+            if (!lookup || !lookup.ok) {
+                showToast(lookup && lookup.reason === 'frozen'
+                    ? '고객의 계좌가 정지되어 결제할 수 없습니다.'
+                    : '유효하지 않거나 만료된 결제 코드입니다. 고객에게 코드를 다시 확인해 주세요.');
                 return;
             }
 
-            let customerUser, customerAcc;
-            try {
-                const [{ data: uData, error: uErr }, { data: aData, error: aErr }] = await Promise.all([
-                    sbClient.from('users_public').select('id, alias').eq('id', codeRow.user_id).single(),
-                    sbClient.from('accounts').select('id, account_no, is_frozen').eq('id', codeRow.account_id).single()
-                ]);
-                if (uErr || aErr || !uData || !aData) {
-                    showToast('고객 계좌 정보를 확인할 수 없습니다.');
-                    return;
-                }
-                customerUser = uData;
-                customerAcc = aData;
-            } catch (err) {
-                console.error('고객 조회 오류:', err);
-                showToast('고객 정보를 확인하는 중 오류가 발생했습니다.');
-                return;
-            }
+            const customerUser = { alias: lookup.customer_alias };
+            const customerAcc = { account_no: lookup.account_no };
 
-            if (customerAcc.is_frozen) {
-                showToast('고객의 계좌가 정지되어 결제할 수 없습니다.');
-                return;
-            }
-
-            state.pendingPosPayment = { codeRow, customerUser, customerAcc, amount: amt, code: code };
+            state.pendingPosPayment = { codeRow: null, customerUser, customerAcc, amount: amt, code: code };
 
             document.getElementById('pos-confirm-customer-name').innerText = customerUser.alias;
             document.getElementById('pos-confirm-customer-acc').innerText = maskAccountNo(customerAcc.account_no);
@@ -4306,29 +4184,37 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (amtInput) amtInput.value = '0';
         }
 
-        let merchantWaitingChannel = null;
+        let merchantWaitingTimer = null;
 
         function startWaitingForApproval(ctx) {
-            if (merchantWaitingChannel) {
-                sbClient.removeChannel(merchantWaitingChannel);
-                merchantWaitingChannel = null;
-            }
+            cleanupMerchantWaiting();
+            const startedAt = Date.now();
+            let busy = false;
 
-            merchantWaitingChannel = sbClient
-                .channel('pos-wait-' + ctx.requestId)
-                .on('postgres_changes', {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'payment_requests',
-                    filter: 'id=eq.' + ctx.requestId
-                }, (payload) => handlePaymentRequestResult(payload, ctx))
-                .subscribe();
+            const tick = async () => {
+                if (busy || !merchantWaitingTimer) return;
+                busy = true;
+                try {
+                    const { data, error } = await merchantRpc('app_merchant_payment_status', { p_request_id: ctx.requestId });
+                    if (!merchantWaitingTimer) return;
+                    const status = !error && data ? data.status : null;
+                    if (status && status !== 'pending' && status !== 'not_found') {
+                        handlePaymentRequestResult({ new: { status: status } }, ctx);
+                    } else if (Date.now() - startedAt > 120000) {
+                        cleanupMerchantWaiting();
+                    }
+                } finally {
+                    busy = false;
+                }
+            };
+
+            merchantWaitingTimer = setInterval(tick, 2000);
         }
 
         function cleanupMerchantWaiting() {
-            if (merchantWaitingChannel) {
-                sbClient.removeChannel(merchantWaitingChannel);
-                merchantWaitingChannel = null;
+            if (merchantWaitingTimer) {
+                clearInterval(merchantWaitingTimer);
+                merchantWaitingTimer = null;
             }
         }
 
@@ -4660,11 +4546,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                const { data, error } = await sbClient
-                    .from('admin_alerts')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(30);
+                const { data, error } = await authRpc('app_admin_alerts');
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -4716,11 +4598,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                const { data: pending, error } = await sbClient
-                    .from('topup_requests')
-                    .select('*')
-                    .eq('status', 'pending')
-                    .order('created_at', { ascending: false });
+                const { data: pending, error } = await authRpc('app_admin_pending_topups');
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -4738,11 +4616,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     badge.classList.remove('hidden');
                 }
 
-                const userIds = [...new Set(pending.map(r => r.user_id))];
-                const { data: users } = await sbClient.from('users_public').select('id, alias, discord').in('id', userIds);
 
                 listEl.innerHTML = pending.map(r => {
-                    const u = (users || []).find(x => x.id === r.user_id);
+                    const u = r.alias != null ? r : null;
                     const userLabel = u ? escapeHtml(u.alias) + ' (' + escapeHtml(u.discord) + ')' : escapeHtml(r.user_id);
                     return '<div class="border border-zinc-200 rounded-xl p-3">' +
                         '<div class="flex justify-between items-center mb-2">' +
@@ -4818,11 +4694,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                const { data: pending, error } = await sbClient
-                    .from('merchants_public')
-                    .select('*')
-                    .eq('status', 'pending')
-                    .order('created_at', { ascending: false });
+                const { data: pending, error } = await authRpc('app_admin_pending_merchants');
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -4864,7 +4736,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let wasPending = false;
             try {
-                const { data: curRow } = await sbClient.from('merchants_public').select('status').eq('id', merchantId).single();
+                const { data: curData } = await authRpc('app_admin_merchant_detail', { p_merchant_id: merchantId });
+                const curRow = curData ? curData.merchant : null;
                 wasPending = !!curRow && curRow.status === 'pending';
             } catch (err) {
                 wasPending = false;
@@ -4914,28 +4787,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             modal.classList.remove('hidden');
 
             try {
-                const { data: user, error: uErr } = await sbClient.from('users_public').select('id, alias, discord, uid, points, is_admin').eq('id', userId).single();
-                if (uErr || !user) {
+                const { data: detail, error: uErr } = await authRpc('app_admin_user_detail', { p_user_id: userId });
+                if (uErr || !detail || !detail.ok) {
                     body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">회원 정보를 불러오지 못했습니다.</div>';
                     return;
                 }
 
-                const { data: accountsRaw } = await sbClient.from('accounts').select('*').eq('user_id', userId);
-                const accounts = orderAccountRows(accountsRaw || [], null);
-                const accountIds = (accounts || []).map(a => a.id);
+                const user = detail.user;
+                const accounts = orderAccountRows(detail.accounts || [], null);
 
                 const { data: autoTransfers } = await authRpc('app_admin_user_auto_transfers', { p_user_id: userId });
 
-                let transactions = [];
-                if (accountIds.length) {
-                    const { data: txData } = await sbClient
-                        .from('transactions')
-                        .select('*')
-                        .in('account_id', accountIds)
-                        .order('created_at', { ascending: false })
-                        .limit(30);
-                    transactions = txData || [];
-                }
+                const transactions = detail.transactions || [];
 
                 const accountsHtml = (accounts || []).map(acc => {
                     const frozenBadge = acc.is_frozen ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 ml-1.5">정지됨</span>' : '';
@@ -5037,19 +4900,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             modal.classList.remove('hidden');
 
             try {
-                const { data: mch, error: mErr } = await sbClient.from('merchants_public').select('*').eq('id', merchantId).single();
+                const { data: mDetail, error: mErr } = await authRpc('app_admin_merchant_detail', { p_merchant_id: merchantId });
+                const mch = mDetail ? mDetail.merchant : null;
                 if (mErr || !mch) {
                     body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">가맹점 정보를 불러오지 못했습니다.</div>';
                     return;
                 }
 
-                const { data: salesRaw } = await sbClient
-                    .from('merchant_sales')
-                    .select('*')
-                    .eq('merchant_id', merchantId)
-                    .order('created_at', { ascending: false })
-                    .limit(30);
-                const sales = salesRaw || [];
+                const sales = (mDetail && mDetail.sales) || [];
 
                 const statusLabel = mch.status === 'pending' ? '승인대기' : (mch.status === 'rejected' ? '거절됨' : '승인됨');
                 const statusClass = mch.status === 'pending' ? 'bg-amber-100 text-amber-700' : (mch.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700');
@@ -5133,12 +4991,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('users_public').select('id, alias, discord, uid, current_account_id, is_frozen');
-                if (search && search.trim()) {
-                    const term = pgQuoteFilterValue('%' + search.trim() + '%');
-                    query = query.or('alias.ilike.' + term + ',discord.ilike.' + term);
-                }
-                const { data: users, error } = await query.limit(30);
+                const { data: listData, error } = await authRpc('app_admin_users', { p_search: search || '' });
+                const users = listData ? listData.users : null;
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -5150,9 +5004,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                const userIds = users.map(u => u.id);
-                const { data: accountsRaw } = await sbClient.from('accounts').select('*').in('user_id', userIds);
-                const accounts = orderAccountRows(accountsRaw || [], null);
+                const accounts = orderAccountRows(listData.accounts || [], null);
 
                 listEl.innerHTML = users.map(u => {
                     const acc = (accounts || []).find(a => a.id === u.current_account_id) || (accounts || []).find(a => a.user_id === u.id);
@@ -5321,12 +5173,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('merchants_public').select('*')
-                    .or('status.neq.rejected,status.is.null,total_sales.gt.0');
-                if (search && search.trim()) {
-                    query = query.ilike('name', '%' + search.trim() + '%');
-                }
-                const { data: merchants, error } = await query.limit(30);
+                const { data: merchants, error } = await authRpc('app_admin_merchants', { p_search: search || '' });
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -5371,12 +5218,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
-                let query = sbClient.from('transactions').select('*').order('created_at', { ascending: false });
-                if (search && search.trim()) {
-                    const term = pgQuoteFilterValue('%' + search.trim() + '%');
-                    query = query.or('title.ilike.' + term + ',counterparty_name.ilike.' + term);
-                }
-                const { data: txs, error } = await query.limit(50);
+                const { data: txs, error } = await authRpc('app_admin_transactions', { p_search: search || '' });
 
                 if (error) {
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -5419,23 +5261,15 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const startTime = performance.now();
 
             try {
-                const [
-                    { count: userCount, error: uErr },
-                    { count: merchantCount, error: mErr },
-                    { count: merchantPendingCount, error: mpErr },
-                    { count: txCount, error: tErr },
-                    { count: pendingPaymentCount, error: ppErr },
-                    { data: feeRows, error: feeErr }
-                ] = await Promise.all([
-                    sbClient.from('users_public').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }),
-                    sbClient.from('merchants_public').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-                    sbClient.from('transactions').select('id', { count: 'exact', head: true }),
-                    sbClient.from('payment_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-                    sbClient.from('merchant_sales').select('fee_amount')
-                ]);
-
-                const totalFees = (feeRows || []).reduce((sum, r) => sum + (r.fee_amount || 0), 0);
+                const { data: stats, error: uErr } = await authRpc('app_admin_stats');
+                const userCount = stats ? stats.user_count : null;
+                const merchantCount = stats ? stats.merchant_count : null;
+                const merchantPendingCount = stats ? stats.merchant_pending_count : null;
+                const txCount = stats ? stats.tx_count : null;
+                const pendingPaymentCount = stats ? stats.pending_payment_count : null;
+                const mErr = null, mpErr = null, tErr = null, ppErr = null;
+                const feeErr = uErr;
+                const totalFees = stats ? Number(stats.fee_total || 0) : 0;
                 document.getElementById('stat-fee-total').innerText = feeErr ? '-' : formatNumber(totalFees) + '원';
                 if (feeErr) console.error('수수료 합계 조회 오류:', feeErr);
 
@@ -6041,10 +5875,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             try {
                 if (discord !== user.discord) {
-                    const { data: dup, error: dupErr } = await sbClient
-                        .from('users_public').select('id').eq('discord', discord).neq('id', user.id).limit(1);
+                    const { data: taken, error: dupErr } = await authRpc('app_discord_taken', { p_discord: discord });
                     if (dupErr) throw dupErr;
-                    if (dup && dup.length > 0) {
+                    if (taken === true) {
                         showToast('이미 사용 중인 디스코드 ID입니다.');
                         return;
                     }
@@ -6057,8 +5890,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     throw upErr;
                 }
 
-                const { data: check, error: chkErr } = await sbClient
-                    .from('users_public').select('alias, discord').eq('id', user.id).single();
+                const { data: check, error: chkErr } = await authRpc('app_my_profile');
                 if (chkErr) throw chkErr;
                 if (!check || check.alias !== alias || check.discord !== discord) {
                     showToast('서버에 반영되지 않았습니다. 권한 설정을 확인해 주세요.');
