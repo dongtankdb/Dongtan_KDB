@@ -1206,12 +1206,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             let matches = [];
             try {
-                const term = pgQuoteFilterValue(query);
-                const { data, error } = await sbClient
-                    .from('users_public')
-                    .select('id, alias, discord')
-                    .or('alias.eq.' + term + ',discord.eq.' + term)
-                    .limit(2);
+                const { data, error } = await sbClient.rpc('app_find_login_account', { p_query: query });
                 if (error) {
                     console.error('계정 조회 오류:', error);
                     showToast('계정 조회 중 오류가 발생했습니다.');
@@ -1293,32 +1288,24 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                const authUser = session.user;
-                const discordIdentity = (authUser.identities || []).find(i => i.provider === 'discord');
-                const discordNumericId =
-                    (discordIdentity && (discordIdentity.id || (discordIdentity.identity_data && (discordIdentity.identity_data.provider_id || discordIdentity.identity_data.sub)))) ||
-                    (authUser.user_metadata && (authUser.user_metadata.provider_id || authUser.user_metadata.sub)) ||
-                    null;
+                const { data: verifyResult, error: verifyErr } = await sbClient.rpc('app_verify_discord_login', {
+                    p_user_id: targetUserId
+                });
 
-                if (!discordNumericId) {
-                    showToast('디스코드 계정 정보를 확인하지 못했습니다.');
-                    return;
-                }
-
-                const { data: targetUser, error: targetErr } = await sbClient
-                    .from('users_public')
-                    .select('id, alias, discord, discord_numeric_id')
-                    .eq('id', targetUserId)
-                    .single();
-
-                if (targetErr || !targetUser) {
-                    console.error('본인확인 대상 계정 조회 오류:', targetErr);
+                if (verifyErr || !verifyResult) {
+                    console.error('본인확인 오류:', verifyErr);
                     showToast('본인 확인 중 오류가 발생했습니다.');
                     return;
                 }
 
-                if (!targetUser.discord_numeric_id) {
-                    showToast('이 계정에는 디스코드 숫자 ID가 등록되어 있지 않아 본인 확인을 할 수 없습니다. 관리자에게 문의해 주세요.');
+                if (!verifyResult.ok) {
+                    if (verifyResult.reason === 'no_discord_session') {
+                        showToast('디스코드 계정 정보를 확인하지 못했습니다.');
+                    } else if (verifyResult.reason === 'no_discord_id') {
+                        showToast('이 계정에는 디스코드 숫자 ID가 등록되어 있지 않아 본인 확인을 할 수 없습니다. 관리자에게 문의해 주세요.');
+                    } else {
+                        showToast('본인 계정이 아닙니다. 등록된 디스코드 계정으로 다시 시도해 주세요.');
+                    }
                     state.pendingVerifyUser = null;
                     state.verifiedLoginUserId = null;
                     state.selectedLoginUserId = null;
@@ -1326,14 +1313,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                if (String(targetUser.discord_numeric_id) !== String(discordNumericId)) {
-                    showToast('본인 계정이 아닙니다. 등록된 디스코드 계정으로 다시 시도해 주세요.');
-                    state.pendingVerifyUser = null;
-                    state.verifiedLoginUserId = null;
-                    state.selectedLoginUserId = null;
-                    renderAuthLoginView();
-                    return;
-                }
+                const targetUser = verifyResult.user;
 
                 let localUser = state.users.find(u => u.id === targetUser.id);
                 if (!localUser) {
@@ -1459,17 +1439,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                const { data: dup, error: dupErr } = await sbClient
-                    .from('users_public')
-                    .select('id')
-                    .eq('discord_numeric_id', found.numericId)
-                    .limit(1);
+                const { data: signupAvailable, error: dupErr } = await sbClient.rpc('app_discord_signup_available');
                 if (dupErr) {
                     console.error('디스코드 숫자 ID 중복 확인 오류:', dupErr);
                     showToast('디스코드 연동 확인 중 오류가 발생했습니다.');
                     return;
                 }
-                if (dup && dup.length > 0) {
+                if (signupAvailable === false) {
                     showToast('이미 가입된 디스코드 계정입니다.');
                     return;
                 }
