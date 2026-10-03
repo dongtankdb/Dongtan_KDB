@@ -482,20 +482,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             });
         }
 
-        async function notifyUser(userId, title, body) {
-            try {
-                await sbClient.from('notifications').insert({
-                    id: genId('notif'),
-                    user_id: userId,
-                    title: title,
-                    body: body || '',
-                    read: false
-                });
-            } catch (err) {
-                console.error('알림 생성 오류:', err);
-            }
-        }
-
         async function refreshNotifBadge() {
             const user = getCurrentUser();
             const badge = document.getElementById('notif-badge');
@@ -558,7 +544,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     }).join('');
                 }
 
-                await sbClient.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
+                await authRpc('app_mark_notifications_read');
                 refreshNotifBadge();
             } catch (err) {
                 console.error('알림함 조회 오류:', err);
@@ -4715,7 +4701,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     '</div>';
                 }).join('');
 
-                await sbClient.from('admin_alerts').update({ read: true }).eq('read', false);
+                await authRpc('app_admin_mark_alerts_read');
             } catch (err) {
                 console.error('관리자 알림 조회 오류:', err);
                 listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -4863,15 +4849,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             } catch (err) {
                 console.error('가맹점 승인 목록 조회 오류:', err);
                 listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
-            }
-        }
-
-        async function removeRejectedMerchant(merchantId) {
-            try {
-                await sbClient.from('merchant_sales').delete().eq('merchant_id', merchantId);
-                await sbClient.from('merchants').delete().eq('id', merchantId).eq('status', 'rejected');
-            } catch (err) {
-                console.warn('거절된 가맹점 삭제 오류:', err);
             }
         }
 
