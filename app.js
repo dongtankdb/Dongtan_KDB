@@ -2913,7 +2913,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (noAt && noAt !== rawQuery) clauses.push('discord.eq.' + pgQuoteFilterValue(noAt));
                 if (isDigits) {
                     clauses.push('uid.eq.' + pgQuoteFilterValue(digitsQuery));
-                    if (digitsQuery.length >= 15) clauses.push('discord_numeric_id.eq.' + pgQuoteFilterValue(digitsQuery));
                 }
 
                 const { data: foundUsers, error: nameErr } = await sbClient
@@ -4938,7 +4937,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             modal.classList.remove('hidden');
 
             try {
-                const { data: user, error: uErr } = await sbClient.from('users_public').select('*').eq('id', userId).single();
+                const { data: user, error: uErr } = await sbClient.from('users_public').select('id, alias, discord, uid, points, is_admin').eq('id', userId).single();
                 if (uErr || !user) {
                     body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">회원 정보를 불러오지 못했습니다.</div>';
                     return;
