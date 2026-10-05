@@ -252,10 +252,6 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 link: 'https://namu.wiki/w/%EB%83%A5%EB%87%BD%EB%85%95%EB%83%A5',
                 position: '50% 33%'
             }
-            2: {
-                link: 'https://namu.wiki/w/%EB%83%A5%EB%87%BD%EB%85%95%EB%83%A5',
-                position: '50% 33%'
-            }
         };
         const AD_MAX_COUNT = 30;
         const AD_SLIDE_INTERVAL_MS = 4000;
