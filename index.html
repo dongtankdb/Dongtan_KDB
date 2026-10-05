@@ -829,9 +829,14 @@
                             <i class="fa-regular fa-copy text-xs"></i>
                         </button>
                     </div>
-                    <button onclick="sendFromAccountDetail()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md mt-4">
-                        송금
-                    </button>
+                    <div class="grid grid-cols-2 gap-2 mt-4">
+                        <button onclick="sendFromAccountDetail()" class="bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md">
+                            송금
+                        </button>
+                        <button onclick="fillFromAccountDetail()" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-900 font-bold py-3.5 rounded-xl text-sm transition-all">
+                            채우기
+                        </button>
+                    </div>
                 </div>
                 <div class="flex justify-between items-center mt-5 mb-2 shrink-0">
                     <h4 class="font-bold text-sm text-zinc-900">거래 내역</h4>
@@ -896,6 +901,8 @@
                         <i class="fa-solid fa-xmark text-lg"></i>
                     </button>
                 </div>
+
+                <div id="deposit-target-account" class="hidden text-[11px] text-zinc-500 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 mb-4"></div>
 
                 <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
                     <div class="flex items-center gap-2 mb-2">
