@@ -228,7 +228,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             const orderedRows = orderAccountRows(myData.accounts || [], getLocalAccountOrder(userId));
-            user.accounts = orderedRows.map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance, isFrozen: a.is_frozen || false }));
+            user.accounts = orderedRows.map(a => ({ id: a.id, name: a.name, accountNo: a.account_no, balance: a.balance, isFrozen: a.is_frozen || false, accountType: a.account_type || 'checking', createdAt: a.created_at || '' }));
+            user.interest = myData.interest || null;
             setLocalAccountOrder(userId, user.accounts.map(a => a.id));
 
             const transactions = myData.transactions || [];
@@ -297,7 +298,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (document.visibilityState === 'visible' && getCurrentUser() && !isClaimingAttendance) renderAttendanceWidget();
             });
 
-            showToast('서버에서 데이터를 불러오는 중입니다...');
+            const dismissLoadingToast = showLoadingToast('서버에서 데이터를 불러오는 중입니다...');
 
             let loaded = false;
             try {
@@ -309,6 +310,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 console.error('초기 데이터 로드 오류:', err);
                 showToast('서버 연결이 지연되고 있습니다. 잠시 후 새로고침해 주세요.');
             }
+
+            dismissLoadingToast();
+            if (loaded) showToast('서버 데이터를 모두 불러왔습니다.');
 
             state.currentUserId = null;
 
@@ -987,10 +991,25 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         const TOAST_MAX_COUNT = 5;
 
+        function hideToastElement(toast) {
+            if (!toast || !toast.isConnected) return;
+            toast.classList.add('opacity-0', 'translate-y-[-10px]');
+            setTimeout(() => toast.remove(), 300);
+        }
+
         function showToast(message) {
             if (typeof isOverlayOpen === 'function' && isOverlayOpen()) showOverlayToast(message);
+            createToast(message, true, false);
+        }
+
+        function showLoadingToast(message) {
+            const toast = createToast(message, false, true);
+            return () => hideToastElement(toast);
+        }
+
+        function createToast(message, autoHide, withSpinner) {
             const container = document.getElementById('toast-container');
-            if (!container) return;
+            if (!container) return null;
 
             while (container.children.length >= TOAST_MAX_COUNT) {
                 container.removeChild(container.firstElementChild);
@@ -1000,7 +1019,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             toast.className = 'pointer-events-auto bg-zinc-900/95 text-white px-4 py-3 rounded-2xl text-xs font-medium shadow-floating flex items-center justify-between transition-all duration-300 opacity-0 translate-y-[-10px] backdrop-blur-md border border-zinc-700/50';
 
             const msgSpan = document.createElement('span');
-            msgSpan.innerText = message;
+            if (withSpinner) {
+                const spinner = document.createElement('i');
+                spinner.className = 'fa-solid fa-spinner fa-spin text-zinc-300 text-xs mr-2';
+                msgSpan.appendChild(spinner);
+            }
+            msgSpan.appendChild(document.createTextNode(message));
 
             const closeIcon = document.createElement('i');
             closeIcon.className = 'fa-solid fa-xmark text-zinc-400 text-xs ml-2 cursor-pointer';
@@ -1015,10 +1039,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 toast.classList.remove('opacity-0', 'translate-y-[-10px]');
             });
 
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-[-10px]');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            if (autoHide) {
+                setTimeout(() => hideToastElement(toast), 3000);
+            }
+
+            return toast;
         }
 
         function getDepositAccount() {
@@ -1642,6 +1667,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             state.selectedLoginUserId = null;
             addKnownAccountId(row.id);
             showToast('계좌 정보를 불러오는 중입니다...');
+            await runInterestCatchup();
             await loadUserFinancialData(row.id);
             saveAppData();
             subscribeToRealtimeUpdates();
@@ -1863,9 +1889,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             container.innerHTML = user.accounts.map((acc, idx) => {
                 const borderClass = idx === 0 ? '' : 'border-t border-zinc-100';
                 const shownBalance = Object.prototype.hasOwnProperty.call(prevBalances, acc.id) ? prevBalances[acc.id] : acc.balance;
-                const primaryBadge = acc.id === primaryId
+                const primaryBadge = (acc.id === primaryId
                     ? '<span class="ml-1.5 text-[9px] font-bold text-white bg-zinc-900 px-1.5 py-0.5 rounded-full align-middle">주계좌</span>'
-                    : '';
+                    : '') + (acc.accountType === 'savings' && user.interest && user.interest.enabled
+                    ? '<span class="ml-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full align-middle">주 ' + formatInterestPct(user.interest.weekly_rate) + '%</span>'
+                    : '');
                 const rightSide = homeAccountEditMode
                     ? '<div class="acc-drag-handle shrink-0 ml-2 -mr-2 w-11 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'home-account-list\', \'.home-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>'
                     : '<div class="flex items-center gap-1.5 shrink-0 ml-2">' +
@@ -2108,6 +2136,25 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             document.getElementById('acc-detail-frozen').classList.toggle('hidden', !acc.isFrozen);
             document.getElementById('acc-detail-balance').innerText = formatNumber(acc.balance);
             document.getElementById('acc-detail-no').innerText = acc.accountNo;
+
+            const interestBox = document.getElementById('acc-detail-interest');
+            if (interestBox) {
+                const cfg = user.interest;
+                if (acc.accountType === 'savings' && cfg && cfg.enabled) {
+                    const expected = computeExpectedInterest(user)[acc.id] || 0;
+                    const next = cfg.next_payout ? new Date(cfg.next_payout) : null;
+                    const nextText = next && !isNaN(next.getTime())
+                        ? next.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
+                        : '다음 주 월요일';
+                    document.getElementById('acc-detail-interest-title').innerText = '매주 ' + formatInterestPct(cfg.weekly_rate) + '% 이자';
+                    document.getElementById('acc-detail-interest-text').innerText =
+                        '내 적금 계좌 합계 최대 ' + formatNumber(cfg.balance_cap) + '원까지 이자가 붙어요. ' +
+                        nextText + ' 지급 예정 이자는 약 ' + formatNumber(expected) + '원이에요.';
+                    interestBox.classList.remove('hidden');
+                } else {
+                    interestBox.classList.add('hidden');
+                }
+            }
 
             const txs = (user.transactions || []).filter(t => t.accountId === acc.id);
             document.getElementById('acc-detail-tx-count').innerText = txs.length + '건';
@@ -3146,7 +3193,126 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (memoInput) memoInput.value = '';
         }
 
+        const ACCOUNT_TYPE_OPTIONS = [
+            { value: 'KDB페이 자유 입출금 통장', type: 'checking', desc: '자유롭게 넣고 빼는 기본 통장', icon: 'fa-wallet' },
+            { value: 'KDB 비상금 통장', type: 'emergency', desc: '급할 때 쓰려고 모아두는 통장', icon: 'fa-life-ring' },
+            { value: 'KDB 고금리 자유 적금', type: 'savings', desc: '이자를 받는 적금 통장', icon: 'fa-seedling' }
+        ];
+
+        function formatInterestPct(rate) {
+            return String(Math.round(Number(rate) * 1000) / 10);
+        }
+
+        function accountTypeDesc(opt) {
+            const user = getCurrentUser();
+            if (opt.type === 'savings' && user && user.interest && user.interest.enabled) {
+                return '매주 ' + formatInterestPct(user.interest.weekly_rate) + '% 이자 · 최대 ' + formatNumber(user.interest.balance_cap) + '원';
+            }
+            return opt.desc;
+        }
+
+        function computeExpectedInterest(user) {
+            const result = {};
+            const cfg = user && user.interest;
+            if (!cfg || !cfg.enabled) return result;
+            const rateMicro = Math.round(Number(cfg.weekly_rate) * 1000000);
+            const cap = Number(cfg.balance_cap) || 0;
+            const savings = (user.accounts || [])
+                .filter(a => a.accountType === 'savings' && !a.isFrozen)
+                .slice()
+                .sort((a, b) => {
+                    const ta = a.createdAt || '', tb = b.createdAt || '';
+                    if (ta !== tb) return ta < tb ? -1 : 1;
+                    return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+                });
+            let before = 0;
+            savings.forEach(a => {
+                const bal = Math.max(Number(a.balance) || 0, 0);
+                const eligible = Math.max(0, Math.min(bal, cap - before));
+                result[a.id] = Math.floor(eligible * rateMicro / 1000000);
+                before += bal;
+            });
+            return result;
+        }
+
+        function renderAccountTypeDropdown() {
+            const input = document.getElementById('new-account-type');
+            const menu = document.getElementById('account-type-menu');
+            if (!input || !menu) return;
+
+            const selected = ACCOUNT_TYPE_OPTIONS.find(o => o.value === input.value) || ACCOUNT_TYPE_OPTIONS[0];
+            input.value = selected.value;
+
+            document.getElementById('account-type-label').innerText = selected.value;
+            document.getElementById('account-type-desc').innerText = accountTypeDesc(selected);
+            document.getElementById('account-type-icon').innerHTML = '<i class="fa-solid ' + selected.icon + '"></i>';
+
+            menu.innerHTML = ACCOUNT_TYPE_OPTIONS.map((opt, idx) => {
+                const isSelected = opt.value === selected.value;
+                return '<button type="button" role="option" aria-selected="' + isSelected + '" onclick="selectAccountType(' + jsArg(opt.value) + ')" ' +
+                    'class="w-full flex items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-zinc-50 transition-colors ' + (idx === 0 ? '' : 'border-t border-zinc-100') + '">' +
+                    '<span class="flex items-center gap-3 min-w-0">' +
+                        '<span class="w-9 h-9 rounded-full ' + (isSelected ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500') + ' flex items-center justify-center shrink-0 text-xs"><i class="fa-solid ' + opt.icon + '"></i></span>' +
+                        '<span class="min-w-0">' +
+                            '<span class="block text-xs font-bold text-zinc-900 truncate">' + escapeHtml(opt.value) + '</span>' +
+                            '<span class="block text-[10px] text-zinc-400 mt-0.5 truncate">' + escapeHtml(accountTypeDesc(opt)) + '</span>' +
+                        '</span>' +
+                    '</span>' +
+                    (isSelected ? '<i class="fa-solid fa-check text-zinc-900 text-xs shrink-0"></i>' : '') +
+                '</button>';
+            }).join('');
+        }
+
+        function setAccountTypeDropdownOpen(open) {
+            const menu = document.getElementById('account-type-menu');
+            const trigger = document.getElementById('account-type-trigger');
+            const chevron = document.getElementById('account-type-chevron');
+            if (!menu || !trigger) return;
+
+            trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (chevron) chevron.classList.toggle('rotate-180', open);
+
+            if (open) {
+                menu.classList.remove('hidden');
+                requestAnimationFrame(() => menu.classList.remove('opacity-0', '-translate-y-1'));
+            } else {
+                menu.classList.add('opacity-0', '-translate-y-1');
+                setTimeout(() => {
+                    if (trigger.getAttribute('aria-expanded') !== 'true') menu.classList.add('hidden');
+                }, 150);
+            }
+        }
+
+        function toggleAccountTypeDropdown() {
+            const trigger = document.getElementById('account-type-trigger');
+            if (!trigger) return;
+            setAccountTypeDropdownOpen(trigger.getAttribute('aria-expanded') !== 'true');
+        }
+
+        function selectAccountType(value) {
+            const input = document.getElementById('new-account-type');
+            if (!input) return;
+            input.value = value;
+            renderAccountTypeDropdown();
+            setAccountTypeDropdownOpen(false);
+        }
+
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('account-type-dropdown');
+            const trigger = document.getElementById('account-type-trigger');
+            if (!dropdown || !trigger || trigger.getAttribute('aria-expanded') !== 'true') return;
+            if (!dropdown.contains(e.target)) setAccountTypeDropdownOpen(false);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') setAccountTypeDropdownOpen(false);
+        });
+
         function openCreateAccountModal() {
+            const input = document.getElementById('new-account-type');
+            if (input) input.value = ACCOUNT_TYPE_OPTIONS[0].value;
+            renderAccountTypeDropdown();
+            setAccountTypeDropdownOpen(false);
             openModal('modal-create-account');
         }
 
@@ -3155,6 +3321,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const aliasElem = document.getElementById('new-account-alias');
 
             const type = typeElem ? typeElem.value : 'KDB페이 자유 입출금 통장';
+            const typeOption = ACCOUNT_TYPE_OPTIONS.find(o => o.value === type) || ACCOUNT_TYPE_OPTIONS[0];
             const alias = aliasElem ? aliasElem.value.trim() : '';
 
             const user = getCurrentUser();
@@ -3166,7 +3333,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             let newAccId, newAccNo;
             try {
                 const { data: accData, error: accErr } = await authRpc('app_create_account', {
-                    p_name: alias || type
+                    p_name: alias || type,
+                    p_type: typeOption.type
                 });
                 if (accErr || !accData || !accData[0]) {
                     console.error('계좌 생성 오류:', accErr);
@@ -3189,7 +3357,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 id: newAccId,
                 name: alias || type,
                 accountNo: newAccNo,
-                balance: 0
+                balance: 0,
+                accountType: typeOption.type,
+                createdAt: new Date().toISOString()
             };
 
             user.accounts.push(newAccount);
@@ -5760,6 +5930,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             state.autoTransfers = state.autoTransfers.filter(r => r.id !== id);
             renderAutoTransferList();
             showToast('자동이체가 해지되었습니다.');
+        }
+
+        async function runInterestCatchup() {
+            try {
+                await authRpc('app_interest_catchup', {});
+            } catch (err) {
+                console.error('이자 지급 확인 오류:', err);
+            }
         }
 
         async function runDueAutoTransfers() {
