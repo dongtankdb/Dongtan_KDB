@@ -1021,17 +1021,32 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }, 3000);
         }
 
-        function openDepositModal() {
+        function getDepositAccount() {
+            const user = getCurrentUser();
+            if (!user) return null;
+            const target = state.depositTargetId
+                ? (user.accounts || []).find(a => a.id === state.depositTargetId)
+                : null;
+            return target || getPrimaryAccount();
+        }
+
+        function depositAccountLabel(acc) {
+            const primary = getPrimaryAccount();
+            return (primary && primary.id === acc.id ? '주계좌 · ' : '') + acc.name;
+        }
+
+        function openDepositModal(accId) {
+            state.depositTargetId = typeof accId === 'string' ? accId : null;
             const amtInput = document.getElementById('deposit-amount');
             const memoInput = document.getElementById('deposit-memo');
             if (amtInput) amtInput.value = '';
             if (memoInput) memoInput.value = '';
 
             const targetEl = document.getElementById('deposit-target-account');
-            const primary = getPrimaryAccount();
+            const target = getDepositAccount();
             if (targetEl) {
-                if (primary) {
-                    targetEl.innerText = '충전 계좌: 주계좌 · ' + primary.name + ' (' + primary.accountNo + ')';
+                if (target) {
+                    targetEl.innerText = '충전 계좌: ' + depositAccountLabel(target) + ' (' + target.accountNo + ')';
                     targetEl.classList.remove('hidden');
                 } else {
                     targetEl.classList.add('hidden');
@@ -1053,7 +1068,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             const user = getCurrentUser();
-            const activeAcc = getPrimaryAccount();
+            const activeAcc = getDepositAccount();
             if (!user || !activeAcc) return;
 
             const submitBtn = document.getElementById('deposit-submit-btn');
@@ -1091,7 +1106,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             closeModal('modal-deposit');
-            showToast('충전 요청을 보냈습니다. 관리자 승인 후 주계좌(' + activeAcc.name + ')에 반영됩니다.');
+            showToast('충전 요청을 보냈습니다. 관리자 승인 후 ' + depositAccountLabel(activeAcc) + ' 계좌에 반영됩니다.');
         }
 
         function toggleAuthMode() {
@@ -2117,9 +2132,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function fillFromAccountDetail() {
-            if (!state.accountDetailId) return;
+            const accId = state.accountDetailId;
+            if (!accId) return;
             closeAccountDetail();
-            openDepositModal();
+            openDepositModal(accId);
         }
 
         function sendFromAccountDetail() {
@@ -4468,7 +4484,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         async function callBankBotTransfer(direction) {
             const user = getCurrentUser();
-            const activeAcc = getPrimaryAccount();
+            const activeAcc = getDepositAccount();
             if (!user || !activeAcc) return;
 
             if (!user.discordNumericId) {
@@ -4541,8 +4557,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 renderApp();
                 showToast(direction === 'deposit'
-                    ? '루루봇에서 주계좌(' + activeAcc.name + ')로 잔액을 불러왔습니다.'
-                    : '주계좌(' + activeAcc.name + ')에서 루루봇으로 출금했습니다.');
+                    ? '루루봇에서 ' + depositAccountLabel(activeAcc) + ' 계좌로 잔액을 불러왔습니다.'
+                    : depositAccountLabel(activeAcc) + ' 계좌에서 루루봇으로 출금했습니다.');
                 closeModal('modal-deposit');
 
                 if (amtInput) amtInput.value = '';
