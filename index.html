@@ -829,6 +829,13 @@
                             <i class="fa-regular fa-copy text-xs"></i>
                         </button>
                     </div>
+                    <div id="acc-detail-interest" class="hidden mt-4 bg-emerald-50 border border-emerald-100 rounded-xl px-3.5 py-3">
+                        <div class="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                            <i class="fa-solid fa-seedling"></i>
+                            <span id="acc-detail-interest-title">적금 이자</span>
+                        </div>
+                        <div id="acc-detail-interest-text" class="text-[11px] text-emerald-700/80 mt-1 leading-relaxed"></div>
+                    </div>
                     <div class="grid grid-cols-2 gap-2 mt-4">
                         <button onclick="sendFromAccountDetail()" class="bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md">
                             송금
@@ -1050,7 +1057,7 @@
         </div>
 
         <div id="modal-create-account" class="modal-backdrop hidden-modal absolute inset-0 bg-black/70 z-[80] flex items-end justify-center">
-            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200">
+            <div class="modal-card bg-white w-full rounded-t-3xl p-6 border-t border-zinc-200 max-h-[90dvh] overflow-y-auto no-scrollbar">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-bold text-base text-zinc-900">신규 계좌 개설</h3>
                     <button onclick="closeModal('modal-create-account')" class="text-zinc-400 hover:text-zinc-600 p-1">
@@ -1061,11 +1068,20 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-xs font-semibold text-zinc-600 mb-1">계좌 종류</label>
-                        <select id="new-account-type" class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold focus:outline-none">
-                            <option value="KDB페이 입출금 통장">KDB페이 자유 입출금 통장</option>
-                            <option value="KDB 비상금 통장">KDB 비상금 통장</option>
-                            <option value="KDB 고금리 자유 적금">KDB 고금리 자유 적금</option>
-                        </select>
+                        <input type="hidden" id="new-account-type" value="KDB페이 자유 입출금 통장">
+                        <div id="account-type-dropdown">
+                            <button type="button" id="account-type-trigger" onclick="toggleAccountTypeDropdown()" aria-haspopup="listbox" aria-expanded="false" class="w-full flex items-center justify-between gap-3 bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-3 text-left transition-colors hover:bg-zinc-100 focus:outline-none focus:border-zinc-900">
+                                <span class="flex items-center gap-3 min-w-0">
+                                    <span id="account-type-icon" class="w-9 h-9 rounded-full bg-zinc-900 text-white flex items-center justify-center shrink-0 text-xs"></span>
+                                    <span class="min-w-0">
+                                        <span id="account-type-label" class="block text-xs font-bold text-zinc-900 truncate"></span>
+                                        <span id="account-type-desc" class="block text-[10px] text-zinc-400 mt-0.5 truncate"></span>
+                                    </span>
+                                </span>
+                                <i id="account-type-chevron" class="fa-solid fa-chevron-down text-zinc-400 text-xs shrink-0 transition-transform duration-200"></i>
+                            </button>
+                            <div id="account-type-menu" role="listbox" class="hidden mt-2 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden transition-all duration-150 opacity-0 -translate-y-1"></div>
+                        </div>
                     </div>
 
                     <div>
@@ -1074,7 +1090,7 @@
                             class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs font-semibold text-zinc-900 focus:outline-none focus:border-zinc-900">
                     </div>
 
-                    <button onclick="executeCreateAccount()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md mt-2">
+                    <button id="create-account-submit-btn" onclick="executeCreateAccount()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md mt-2">
                         계좌 개설 완료
                     </button>
                 </div>
