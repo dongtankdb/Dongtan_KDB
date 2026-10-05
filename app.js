@@ -247,41 +247,73 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }));
         }
 
-        const AD_BANNERS = [
-            {
-                src: 'ad-1.png',
+        const AD_BANNER_OPTIONS = {
+            1: {
                 link: 'https://namu.wiki/w/%EB%83%A5%EB%87%BD%EB%85%95%EB%83%A5',
                 position: '50% 33%'
             }
-        ];
+            2: {
+                link: 'https://namu.wiki/w/%EB%83%A5%EB%87%BD%EB%85%95%EB%83%A5',
+                position: '50% 33%'
+            }
+        };
+        const AD_MAX_COUNT = 30;
         const AD_SLIDE_INTERVAL_MS = 4000;
 
-        function initAdPanels() {
+        function probeImage(src) {
+            return new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = src;
+            });
+        }
+
+        async function discoverAdBanners() {
+            const found = [];
+            for (let n = 1; n <= AD_MAX_COUNT; n++) {
+                let src = 'ad-' + n + '.png';
+                if (!(await probeImage(src))) {
+                    src = 'ad' + n + '.png';
+                    if (!(await probeImage(src))) break;
+                }
+                const opt = AD_BANNER_OPTIONS[n] || {};
+                found.push({ src: src, link: opt.link || '', position: opt.position || '' });
+            }
+            return found;
+        }
+
+        async function initAdPanels() {
             const banner = document.getElementById('home-ad-banner');
             if (!banner) return;
 
-            if (!AD_BANNERS.length) {
+            const ads = await discoverAdBanners();
+
+            if (!ads.length) {
                 banner.classList.remove('hidden');
                 banner.innerHTML = '<div class="ad-placeholder">AD</div>';
                 return;
             }
 
+            let current = Math.floor(Math.random() * ads.length);
+
             banner.classList.remove('hidden');
-            banner.innerHTML = AD_BANNERS.map((img, idx) => {
+            banner.innerHTML = ads.map((img, idx) => {
                 const posStyle = img.position ? ' style="object-position: ' + img.position + ';"' : '';
-                const slideImg = '<img src="' + img.src + '" class="ad-slide' + (idx === 0 ? ' active' : '') + '" alt="광고"' + posStyle + '>';
+                const slideImg = '<img src="' + img.src + '" class="ad-slide' + (idx === current ? ' active' : '') + '" alt="광고"' + posStyle + '>';
                 return img.link
                     ? '<a href="' + img.link + '" target="_blank" rel="noopener noreferrer" class="block w-full h-full">' + slideImg + '</a>'
                     : slideImg;
             }).join('');
 
-            if (AD_BANNERS.length > 1) {
-                let current = 0;
+            if (ads.length > 1) {
                 setInterval(() => {
                     const slides = banner.querySelectorAll('.ad-slide');
-                    if (!slides.length) return;
+                    if (slides.length < 2) return;
+                    let next = current;
+                    while (next === current) next = Math.floor(Math.random() * slides.length);
                     slides[current].classList.remove('active');
-                    current = (current + 1) % slides.length;
+                    current = next;
                     slides[current].classList.add('active');
                 }, AD_SLIDE_INTERVAL_MS);
             }
@@ -289,7 +321,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         window.addEventListener('DOMContentLoaded', async () => {
             try { startVersionCheckPolling(); } catch (err) { console.error('버전 확인 시작 오류:', err); }
-            try { initAdPanels(); } catch (err) { console.error('광고 초기화 오류:', err); }
+            initAdPanels().catch(err => console.error('광고 초기화 오류:', err));
 
             setInterval(() => {
                 if (getCurrentUser() && !isClaimingAttendance) renderAttendanceWidget();
