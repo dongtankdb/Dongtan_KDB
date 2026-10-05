@@ -1740,6 +1740,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             state.currentUserId = null;
             state.enteredPin = '';
             saveAppData();
+            closeAccountDetail();
             unsubscribeRealtimeUpdates();
             stopPayCodeAutoRefresh();
             hidePaymentRequestBanner();
@@ -1781,7 +1782,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             renderHomeAccountList();
             renderHomeMonthSpend();
-            renderTransactions();
+            refreshAccountDetail();
             renderAttendanceWidget();
             renderShopGrid();
         }
@@ -1841,11 +1842,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const rightSide = homeAccountEditMode
                     ? '<div class="acc-drag-handle shrink-0 ml-2 -mr-2 w-11 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'home-account-list\', \'.home-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>'
                     : '<div class="flex items-center gap-1.5 shrink-0 ml-2">' +
-                        '<button onclick="copyAccountNo(' + jsArg(acc.id) + ')" aria-label="계좌번호 복사" class="w-8 h-8 flex items-center justify-center text-zinc-500 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"><i class="fa-regular fa-copy text-xs"></i></button>' +
-                        '<button onclick="quickTransferFromAccount(' + jsArg(acc.id) + ')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors">송금</button>' +
+                        '<button onclick="event.stopPropagation();copyAccountNo(' + jsArg(acc.id) + ')" aria-label="계좌번호 복사" class="w-8 h-8 flex items-center justify-center text-zinc-500 bg-zinc-100 rounded-lg hover:bg-zinc-200 transition-colors"><i class="fa-regular fa-copy text-xs"></i></button>' +
+                        '<button onclick="event.stopPropagation();quickTransferFromAccount(' + jsArg(acc.id) + ')" class="text-xs font-bold text-zinc-600 bg-zinc-100 px-3.5 py-2 rounded-lg hover:bg-zinc-200 transition-colors">송금</button>' +
                       '</div>';
 
-                return '<div class="home-acc-row flex items-center justify-between px-4 py-3.5 ' + borderClass + '" data-acc-id="' + acc.id + '">' +
+                return '<div class="home-acc-row flex items-center justify-between px-4 py-3.5 ' + borderClass + (homeAccountEditMode ? '' : ' cursor-pointer active:bg-zinc-50') + '" data-acc-id="' + acc.id + '"' + (homeAccountEditMode ? '' : ' onclick="openAccountDetail(' + jsArg(acc.id) + ')"') + '>' +
                     '<div class="flex items-center gap-3 min-w-0">' +
                         '<div class="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">' +
                             '<i class="fa-solid fa-won-sign text-white text-xs"></i>' +
@@ -2047,46 +2048,67 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }).join('');
         }
 
-        const HOME_TX_PREVIEW_COUNT = 3;
-
-        function renderTransactions() {
+        function openAccountDetail(accId) {
             const user = getCurrentUser();
-            const txList = document.getElementById('tx-list');
-            const emptyState = document.getElementById('empty-tx-state');
-            const badge = document.getElementById('tx-count-badge');
-            const moreBtnWrap = document.getElementById('tx-more-btn-wrap');
+            if (!user || homeAccountEditMode) return;
+            const acc = (user.accounts || []).find(a => a.id === accId);
+            if (!acc) return;
+            state.accountDetailId = accId;
+            renderAccountDetail();
+            const listEl = document.getElementById('acc-detail-tx-list');
+            if (listEl) listEl.scrollTop = 0;
+            openModal('modal-account-detail');
+        }
 
-            if (!user || !user.transactions || user.transactions.length === 0) {
-                if (emptyState) emptyState.classList.remove('hidden');
-                if (txList) txList.classList.add('hidden');
-                if (badge) badge.innerText = '0건';
-                if (moreBtnWrap) moreBtnWrap.classList.add('hidden');
+        function closeAccountDetail() {
+            state.accountDetailId = null;
+            closeModal('modal-account-detail');
+        }
+
+        function renderAccountDetail() {
+            const user = getCurrentUser();
+            if (!user || !state.accountDetailId) return;
+
+            const acc = (user.accounts || []).find(a => a.id === state.accountDetailId);
+            if (!acc) {
+                closeAccountDetail();
                 return;
             }
 
-            if (emptyState) emptyState.classList.add('hidden');
-            if (txList) txList.classList.remove('hidden');
-            if (badge) badge.innerText = user.transactions.length + '건';
+            const primary = getPrimaryAccount();
+            document.getElementById('acc-detail-name').innerText = acc.name;
+            document.getElementById('acc-detail-primary').classList.toggle('hidden', !(primary && primary.id === acc.id));
+            document.getElementById('acc-detail-frozen').classList.toggle('hidden', !acc.isFrozen);
+            document.getElementById('acc-detail-balance').innerText = formatNumber(acc.balance);
+            document.getElementById('acc-detail-no').innerText = acc.accountNo;
 
-            const previewTx = user.transactions.slice(0, HOME_TX_PREVIEW_COUNT);
-            txList.innerHTML = renderTxItemsHtml(previewTx);
+            const txs = (user.transactions || []).filter(t => t.accountId === acc.id);
+            document.getElementById('acc-detail-tx-count').innerText = txs.length + '건';
 
-            if (moreBtnWrap) {
-                if (user.transactions.length > HOME_TX_PREVIEW_COUNT) {
-                    moreBtnWrap.classList.remove('hidden');
-                } else {
-                    moreBtnWrap.classList.add('hidden');
-                }
-            }
+            const listEl = document.getElementById('acc-detail-tx-list');
+            const prevScroll = listEl.scrollTop;
+            listEl.innerHTML = txs.length
+                ? renderTxItemsHtml(txs)
+                : '<div class="text-center py-10 text-xs text-zinc-400">이 계좌의 거래 내역이 없어요.</div>';
+            listEl.scrollTop = prevScroll;
         }
 
-        function openTransactionHistoryModal() {
-            const user = getCurrentUser();
-            const listEl = document.getElementById('tx-history-modal-list');
-            if (!user || !listEl) return;
+        function refreshAccountDetail() {
+            if (!state.accountDetailId) return;
+            const modal = document.getElementById('modal-account-detail');
+            if (!modal || modal.classList.contains('hidden-modal')) return;
+            renderAccountDetail();
+        }
 
-            listEl.innerHTML = renderTxItemsHtml(user.transactions);
-            openModal('modal-transaction-history');
+        function copyAccountDetailNo() {
+            if (state.accountDetailId) copyAccountNo(state.accountDetailId);
+        }
+
+        function sendFromAccountDetail() {
+            const accId = state.accountDetailId;
+            if (!accId) return;
+            closeAccountDetail();
+            quickTransferFromAccount(accId);
         }
 
         const SHOP_CATEGORIES = ['디지털', '푸드', '패션', '생활', '기타'];
