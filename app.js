@@ -1026,6 +1026,18 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const memoInput = document.getElementById('deposit-memo');
             if (amtInput) amtInput.value = '';
             if (memoInput) memoInput.value = '';
+
+            const targetEl = document.getElementById('deposit-target-account');
+            const primary = getPrimaryAccount();
+            if (targetEl) {
+                if (primary) {
+                    targetEl.innerText = '충전 계좌: 주계좌 · ' + primary.name + ' (' + primary.accountNo + ')';
+                    targetEl.classList.remove('hidden');
+                } else {
+                    targetEl.classList.add('hidden');
+                }
+            }
+
             openModal('modal-deposit');
         }
 
@@ -2102,6 +2114,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function copyAccountDetailNo() {
             if (state.accountDetailId) copyAccountNo(state.accountDetailId);
+        }
+
+        function fillFromAccountDetail() {
+            if (!state.accountDetailId) return;
+            closeAccountDetail();
+            openDepositModal();
         }
 
         function sendFromAccountDetail() {
