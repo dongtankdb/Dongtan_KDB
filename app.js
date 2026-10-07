@@ -506,11 +506,40 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        function renderNotificationList(items) {
+            const listEl = document.getElementById('notif-list');
+            const clearBtn = document.getElementById('notif-clear-all-btn');
+            if (!listEl) return;
+
+            if (!items || items.length === 0) {
+                listEl.innerHTML = '<div class="text-center py-10 text-xs text-zinc-400">받은 알림이 없습니다.</div>';
+                if (clearBtn) clearBtn.classList.add('hidden');
+                return;
+            }
+
+            if (clearBtn) clearBtn.classList.remove('hidden');
+            listEl.innerHTML = items.map(n => {
+                const unreadDot = n.read ? '' : '<span class="w-2 h-2 bg-red-500 rounded-full inline-block mr-1.5"></span>';
+                return '<div data-notif-id="' + escapeHtml(n.id) + '" class="bg-white p-3.5 rounded-2xl border border-zinc-200/80 shadow-sm flex items-start gap-2">' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<div class="flex items-center text-xs font-bold text-zinc-900">' + unreadDot + escapeHtml(n.title) + '</div>' +
+                        (n.body ? '<div class="text-[11px] text-zinc-500 mt-1">' + escapeHtml(n.body) + '</div>' : '') +
+                        '<div class="text-[10px] text-zinc-400 mt-1.5">' + formatRelativeDate(n.created_at) + '</div>' +
+                    '</div>' +
+                    '<button onclick="deleteNotification(' + jsArg(n.id) + ')" aria-label="알림 삭제" class="w-7 h-7 shrink-0 flex items-center justify-center text-zinc-300 hover:text-red-500 rounded-lg hover:bg-zinc-50 transition-colors">' +
+                        '<i class="fa-regular fa-trash-can text-xs"></i>' +
+                    '</button>' +
+                '</div>';
+            }).join('');
+        }
+
         async function openNotificationModal() {
             const user = getCurrentUser();
             const listEl = document.getElementById('notif-list');
+            const clearBtn = document.getElementById('notif-clear-all-btn');
             if (!user || !listEl) return;
 
+            if (clearBtn) clearBtn.classList.add('hidden');
             listEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">불러오는 중...</div>';
             openModal('modal-notifications');
 
@@ -522,18 +551,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     return;
                 }
 
-                if (!data || data.length === 0) {
-                    listEl.innerHTML = '<div class="text-center py-10 text-xs text-zinc-400">받은 알림이 없습니다.</div>';
-                } else {
-                    listEl.innerHTML = data.map(n => {
-                        const unreadDot = n.read ? '' : '<span class="w-2 h-2 bg-red-500 rounded-full inline-block mr-1.5"></span>';
-                        return '<div class="bg-white p-3.5 rounded-2xl border border-zinc-200/80 shadow-sm">' +
-                            '<div class="flex items-center text-xs font-bold text-zinc-900">' + unreadDot + escapeHtml(n.title) + '</div>' +
-                            (n.body ? '<div class="text-[11px] text-zinc-500 mt-1">' + escapeHtml(n.body) + '</div>' : '') +
-                            '<div class="text-[10px] text-zinc-400 mt-1.5">' + formatRelativeDate(n.created_at) + '</div>' +
-                        '</div>';
-                    }).join('');
-                }
+                renderNotificationList(data);
 
                 await authRpc('app_mark_notifications_read');
                 refreshNotifBadge();
@@ -541,6 +559,51 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 console.error('알림함 조회 오류:', err);
                 listEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">알림을 불러오지 못했습니다.</div>';
             }
+        }
+
+        async function deleteNotification(id) {
+            if (!getCurrentUser()) return;
+
+            try {
+                const { data, error } = await authRpc('app_delete_notification', { p_id: id });
+                if (error || !data || !data.ok) {
+                    showToast('알림을 삭제하지 못했습니다.');
+                    return;
+                }
+            } catch (err) {
+                console.error('알림 삭제 오류:', err);
+                showToast('알림을 삭제하지 못했습니다.');
+                return;
+            }
+
+            const listEl = document.getElementById('notif-list');
+            if (listEl) {
+                const item = Array.from(listEl.children).find(el => el.dataset && el.dataset.notifId === id);
+                if (item) item.remove();
+                if (!listEl.querySelector('[data-notif-id]')) renderNotificationList([]);
+            }
+            refreshNotifBadge();
+        }
+
+        async function deleteAllNotifications() {
+            if (!getCurrentUser()) return;
+            if (!window.confirm('알림을 모두 삭제할까요? 삭제하면 되돌릴 수 없습니다.')) return;
+
+            try {
+                const { data, error } = await authRpc('app_delete_all_notifications');
+                if (error || !data || !data.ok) {
+                    showToast('알림을 삭제하지 못했습니다.');
+                    return;
+                }
+            } catch (err) {
+                console.error('알림 전체 삭제 오류:', err);
+                showToast('알림을 삭제하지 못했습니다.');
+                return;
+            }
+
+            renderNotificationList([]);
+            refreshNotifBadge();
+            showToast('알림을 모두 삭제했습니다.');
         }
 
         const USER_POLL_INTERVAL_MS = 3000;
