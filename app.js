@@ -4721,6 +4721,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     body: {
                         user_id: user.id,
                         pin: pin,
+                        token: state.sessionToken,
                         account_id: activeAcc.id,
                         direction: direction,
                         amount: amount,
@@ -4730,7 +4731,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 if (error) {
                     console.error('봇 연동 오류:', error);
-                    showToast('처리 중 오류가 발생했습니다: ' + (error.message || ''));
+                    let serverMsg = '';
+                    try {
+                        const errBody = await error.context.json();
+                        serverMsg = (errBody && errBody.error && errBody.error.message) || '';
+                    } catch (e) {}
+                    showToast(serverMsg || ('처리 중 오류가 발생했습니다: ' + (error.message || '')));
                     return;
                 }
 
@@ -4741,18 +4747,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 activeAcc.balance = data.new_balance;
-
-                user.transactions.unshift({
-                    id: genId('tx'),
-                    accountId: activeAcc.id,
-                    title: direction === 'deposit' ? '루루봇에서 충전' : '루루봇으로 출금',
-                    memo: memo || '',
-                    date: '방금 전',
-                    createdAt: new Date().toISOString(),
-                    amount: direction === 'deposit' ? amount : -amount,
-                    type: direction === 'deposit' ? 'deposit' : 'withdraw'
-                });
-
+                await loadUserFinancialData(user.id);
                 renderApp();
                 showToast(direction === 'deposit'
                     ? '루루봇에서 ' + depositAccountLabel(activeAcc) + ' 계좌로 잔액을 불러왔습니다.'
