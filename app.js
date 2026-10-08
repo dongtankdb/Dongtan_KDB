@@ -2687,6 +2687,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             if (name === 'dashboard') {
                 renderPortalDashboard();
+                const portalMch = getCurrentMerchant();
+                if (portalMch) {
+                    refreshMerchantFromServer(portalMch.id).then(() => {
+                        if (state.portalSection === 'dashboard') renderPortalDashboard();
+                    });
+                }
                 loadMerchantProducts();
                 loadMerchantOrders();
             } else if (name === 'products') {
@@ -4580,7 +4586,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         async function executeMerchantSettlement() {
-            const mch = getCurrentMerchant();
+            let mch = getCurrentMerchant();
+            if (!mch) return;
+
+            await refreshMerchantFromServer(mch.id);
+            mch = getCurrentMerchant();
             if (!mch) return;
 
             if (mch.unsettledBalance <= 0) {
@@ -4588,7 +4598,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const amt = mch.unsettledBalance;
+            let amt = mch.unsettledBalance;
 
             const settleBtn = document.getElementById('mch-settle-btn');
             const settleBtnOriginalHtml = settleBtn ? settleBtn.innerHTML : '';
@@ -4624,6 +4634,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
+            if (typeof settleResult.amount === 'number') amt = settleResult.amount;
             mch.unsettledBalance = 0;
             mch.salesHistory.forEach(s => s.settled = true);
 
