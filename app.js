@@ -443,16 +443,28 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        function parseAmountInput(value) {
+            const t = String(value == null ? '' : value).trim();
+            if (!/^\d{1,15}$/.test(t)) return 0;
+            const n = Number(t);
+            return Number.isSafeInteger(n) ? n : 0;
+        }
+
         function genId(prefix) {
             return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
         }
 
-        const APP_BUILD_VERSION = '2026-01-15-04';
         let versionCheckTimer = null;
 
+        function currentLoadedBuildVersion() {
+            const el = document.querySelector('script[src*="app.js"]');
+            const m = el ? (el.getAttribute('src') || '').match(/[?&]v=([^&]+)/) : null;
+            return m ? m[1] : null;
+        }
+
         function extractBuildVersion(html) {
-            const match = html.match(/APP_BUILD_VERSION\s*=\s*'([^']+)'/);
-            return match ? match[1] : null;
+            const m = html.match(/app\.js\?v=([^"'&\s]+)/);
+            return m ? m[1] : null;
         }
 
         async function checkForNewVersion() {
@@ -461,7 +473,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (!res.ok) return;
                 const html = await res.text();
                 const liveVersion = extractBuildVersion(html);
-                if (liveVersion && liveVersion !== APP_BUILD_VERSION) {
+                const loadedVersion = currentLoadedBuildVersion();
+                if (liveVersion && loadedVersion && liveVersion !== loadedVersion) {
                     const banner = document.getElementById('app-update-banner');
                     if (banner) banner.classList.remove('hidden');
                     if (versionCheckTimer) {
@@ -1175,7 +1188,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         async function submitTopupRequest() {
             const amtInput = document.getElementById('deposit-amount');
             const memoInput = document.getElementById('deposit-memo');
-            const amt = amtInput ? parseInt(amtInput.value) : 0;
+            const amt = amtInput ? parseAmountInput(amtInput.value) : 0;
             const memo = memoInput ? memoInput.value.trim() : '';
 
             if (!amt || amt <= 0) {
@@ -1881,6 +1894,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const tokenToRevoke = state.sessionToken;
             state.sessionToken = null;
             if (tokenToRevoke) sbClient.rpc('app_logout', { p_token: tokenToRevoke }).then(() => {}, () => {});
+            try { sbClient.auth.signOut().then(() => {}, () => {}); } catch (e) {}
             state.currentUserId = null;
             state.enteredPin = '';
             saveAppData();
@@ -3041,7 +3055,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         function addTransferAmount(val) {
             const input = document.getElementById('transfer-amount');
             if (input) {
-                const cur = parseInt(input.value) || 0;
+                const cur = parseAmountInput(input.value);
                 input.value = cur + val;
             }
         }
@@ -3095,7 +3109,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const memoInput = document.getElementById('transfer-memo');
 
             const recipient = recipientInput ? recipientInput.value.trim() : '';
-            const amount = amountInput ? parseInt(amountInput.value) : 0;
+            const amount = amountInput ? parseAmountInput(amountInput.value) : 0;
             const memo = memoInput ? memoInput.value.trim() : '';
 
             if (!recipient) {
@@ -4381,7 +4395,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const codeInput = document.getElementById('pos-input-code');
             const amtInput = document.getElementById('pos-input-amount');
             const code = codeInput ? codeInput.value.trim() : '';
-            const amt = amtInput ? parseInt(amtInput.value) : 0;
+            const amt = amtInput ? parseAmountInput(amtInput.value) : 0;
 
             if (!code || code.length !== 6) {
                 showToast('6자리 결제 코드를 올바르게 입력해 주세요.');
@@ -4755,7 +4769,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const amtInput = document.getElementById('bot-transfer-amount');
             const memoInput = document.getElementById('bot-transfer-memo');
-            const amount = amtInput ? parseInt(amtInput.value) : 0;
+            const amount = amtInput ? parseAmountInput(amtInput.value) : 0;
             const memo = memoInput ? memoInput.value.trim() : '';
 
             if (!amount || amount <= 0) {
@@ -5425,7 +5439,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         async function adminAdjustBalance(userId, accountId, sign) {
             const input = document.getElementById('admin-amt-' + userId);
-            const amt = input ? parseInt(input.value) : 0;
+            const amt = input ? parseAmountInput(input.value) : 0;
 
             if (!amt || amt <= 0) {
                 showToast('조정할 금액을 입력해 주세요.');
@@ -5887,7 +5901,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!user || !activeAcc) return;
 
             const recipient = document.getElementById('at-recipient').value.trim();
-            const amount = parseInt(document.getElementById('at-amount').value, 10);
+            const amount = parseAmountInput(document.getElementById('at-amount').value);
             const memo = document.getElementById('at-memo').value.trim();
             const cycle = state.autoTransferCycle;
 
