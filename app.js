@@ -1983,7 +1983,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const primaryBadge = (acc.id === primaryId
                     ? '<span class="ml-1.5 text-[9px] font-bold text-white bg-zinc-900 px-1.5 py-0.5 rounded-full align-middle">주계좌</span>'
                     : '') + (acc.accountType === 'savings' && user.interest && user.interest.enabled
-                    ? '<span class="ml-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full align-middle">주 ' + formatInterestPct(user.interest.weekly_rate) + '%</span>'
+                    ? '<span class="ml-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full align-middle">월 ' + formatInterestPct(user.interest.monthly_rate) + '%</span>'
                     : '');
                 const rightSide = homeAccountEditMode
                     ? '<div class="acc-drag-handle shrink-0 ml-2 -mr-2 w-11 h-11 flex items-center justify-center text-zinc-400 rounded-xl hover:bg-zinc-100" onpointerdown="startAccountDrag(event, this, \'home-account-list\', \'.home-acc-row\')" aria-label="끌어서 순서 변경"><i class="fa-solid fa-grip-lines text-base"></i></div>'
@@ -2236,8 +2236,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     const next = cfg.next_payout ? new Date(cfg.next_payout) : null;
                     const nextText = next && !isNaN(next.getTime())
                         ? next.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
-                        : '다음 주 월요일';
-                    document.getElementById('acc-detail-interest-title').innerText = '매주 ' + formatInterestPct(cfg.weekly_rate) + '% 이자';
+                        : '다음 달 1일';
+                    document.getElementById('acc-detail-interest-title').innerText = '매월 ' + formatInterestPct(cfg.monthly_rate) + '% 이자';
                     document.getElementById('acc-detail-interest-text').innerText =
                         '내 적금 계좌 합계 최대 ' + formatNumber(cfg.balance_cap) + '원까지 이자가 붙어요. ' +
                         nextText + ' 지급 예정 이자는 약 ' + formatNumber(expected) + '원이에요.';
@@ -3297,7 +3297,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         function accountTypeDesc(opt) {
             const user = getCurrentUser();
             if (opt.type === 'savings' && user && user.interest && user.interest.enabled) {
-                return '매주 ' + formatInterestPct(user.interest.weekly_rate) + '% 이자 · 최대 ' + formatNumber(user.interest.balance_cap) + '원';
+                return '매월 ' + formatInterestPct(user.interest.monthly_rate) + '% 이자 · 최대 ' + formatNumber(user.interest.balance_cap) + '원';
             }
             return opt.desc;
         }
@@ -3306,7 +3306,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const result = {};
             const cfg = user && user.interest;
             if (!cfg || !cfg.enabled) return result;
-            const rateMicro = Math.round(Number(cfg.weekly_rate) * 1000000);
+            const rateMicro = Math.round(Number(cfg.monthly_rate) * 1000000);
             const cap = Number(cfg.balance_cap) || 0;
             const savings = (user.accounts || [])
                 .filter(a => a.accountType === 'savings' && !a.isFrozen)
