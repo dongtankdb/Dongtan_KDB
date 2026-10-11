@@ -49,7 +49,7 @@
         }
 </script>
 
-    <link rel="stylesheet" href="style.css?v=20261008">
+    <link rel="stylesheet" href="style.css?v=20261011">
 </head>
 <body>
 
@@ -1767,6 +1767,35 @@
         </div>
     </div>
 
-    <script src="app.js?v=20261008"></script>
+    <script>
+        (function () {
+            var KEY = 'kdb_res_retry';
+            if (window.supabase && window.tailwind) {
+                try { sessionStorage.removeItem(KEY); } catch (e) {}
+                return;
+            }
+            try {
+                if (!sessionStorage.getItem(KEY)) {
+                    sessionStorage.setItem(KEY, '1');
+                    location.reload();
+                    return;
+                }
+            } catch (e) {}
+            var box = document.createElement('div');
+            box.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#fff;color:#18181b;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif';
+            box.innerHTML = '<div style="font-size:16px;font-weight:700;margin-bottom:8px">화면을 불러오지 못했습니다</div>' +
+                '<div style="font-size:13px;color:#71717a;margin-bottom:16px;line-height:1.7">인터넷 연결이나 브라우저 캐시 문제일 수 있어요.<br>버튼을 눌러도 안 되면 Ctrl+Shift+R(강력 새로고침)을 누르거나<br>브라우저 캐시를 삭제한 뒤 다시 접속해 주세요.</div>';
+            var btn = document.createElement('button');
+            btn.textContent = '다시 시도';
+            btn.style.cssText = 'background:#09090b;color:#fff;border:0;border-radius:12px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer';
+            btn.addEventListener('click', function () {
+                try { sessionStorage.removeItem(KEY); } catch (e) {}
+                location.reload();
+            });
+            box.appendChild(btn);
+            document.body.appendChild(box);
+        })();
+    </script>
+    <script src="app.js?v=20261011"></script>
 </body>
 </html>
