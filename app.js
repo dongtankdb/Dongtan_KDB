@@ -1189,6 +1189,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
             }
 
+            applyBotWithdrawState();
+            loadFeatureFlags();
             openModal('modal-deposit');
         }
 
@@ -4777,6 +4779,97 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (resolve) resolve(null);
         }
 
+
+        // ===== 기능 스위치 (관리자가 서버에서 켜고 끔) =====
+        state.featureFlags = { bot_withdraw: true };
+        let isTogglingBotWithdraw = false;
+
+        function isBotWithdrawEnabled() {
+            return state.featureFlags.bot_withdraw !== false;
+        }
+
+        async function loadFeatureFlags() {
+            try {
+                const { data, error } = await sbClient.rpc('app_get_feature_flags');
+                if (!error && data && typeof data === 'object') {
+                    state.featureFlags = Object.assign({ bot_withdraw: true }, data);
+                }
+            } catch (err) {
+                console.error('기능 스위치 조회 오류:', err);
+            }
+            applyBotWithdrawState();
+        }
+
+        function applyBotWithdrawState() {
+            const on = isBotWithdrawEnabled();
+
+            const wBtn = document.getElementById('bot-withdraw-btn');
+            const note = document.getElementById('bot-withdraw-off-note');
+            if (wBtn) wBtn.disabled = !on;
+            if (note) note.classList.toggle('hidden', on);
+
+            const dot = document.getElementById('admin-botwd-dot');
+            const text = document.getElementById('admin-botwd-text');
+            const aBtn = document.getElementById('admin-botwd-btn');
+            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full ' + (on ? 'bg-emerald-500' : 'bg-red-500');
+            if (text) {
+                text.innerText = on ? '가동 중' : '중지됨';
+                text.className = 'text-xs font-semibold ' + (on ? 'text-emerald-600' : 'text-red-600');
+            }
+            if (aBtn) {
+                aBtn.innerText = on ? '출금 중지하기' : '출금 가동하기';
+                aBtn.className = 'shrink-0 text-xs font-bold px-4 py-2 rounded-xl text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
+                    (on ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700');
+                aBtn.disabled = isTogglingBotWithdraw;
+            }
+        }
+
+        async function adminToggleBotWithdraw() {
+            if (isTogglingBotWithdraw) return;
+            const user = getCurrentUser();
+            if (!user || !user.isAdmin) {
+                showToast('관리자만 변경할 수 있습니다.');
+                return;
+            }
+
+            const next = !isBotWithdrawEnabled();
+            const ok = window.confirm(next
+                ? '루루봇 출금 기능을 다시 가동할까요?'
+                : '루루봇 출금 기능을 중지할까요?\n모든 회원의 루루봇 출금이 즉시 차단됩니다.');
+            if (!ok) return;
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            isTogglingBotWithdraw = true;
+            applyBotWithdrawState();
+            try {
+                const { data, error } = await adminRpc('set_feature', {
+                    p_admin_pin: adminPin,
+                    p_key: 'bot_withdraw',
+                    p_enabled: next
+                });
+                if (error) {
+                    console.error('기능 스위치 변경 오류:', error);
+                    showToast(adminRpcErrorMessage(error));
+                    return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row || !row.ok) {
+                    showToast('설정을 변경하지 못했습니다.');
+                    return;
+                }
+                state.featureFlags.bot_withdraw = next;
+                showToast(next ? '루루봇 출금을 가동했습니다.' : '루루봇 출금을 중지했습니다.');
+            } catch (err) {
+                console.error('기능 스위치 변경 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            } finally {
+                isTogglingBotWithdraw = false;
+                applyBotWithdrawState();
+            }
+        }
+
         async function callBankBotTransfer(direction) {
             const user = getCurrentUser();
             const activeAcc = getDepositAccount();
@@ -4785,6 +4878,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!user.discordNumericId) {
                 showToast('먼저 마이페이지 → 프로필 수정에서 디스코드 숫자 ID를 등록해 주세요.');
                 return;
+            }
+
+            if (direction === 'withdrawal') {
+                await loadFeatureFlags();
+                if (!isBotWithdrawEnabled()) {
+                    showToast('현재 루루봇 출금이 일시 중지되어 있습니다.');
+                    return;
+                }
             }
 
             const amtInput = document.getElementById('bot-transfer-amount');
@@ -4859,6 +4960,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
                 if (otherBtn) otherBtn.disabled = false;
+                applyBotWithdrawState();
             }
         }
 
@@ -5664,6 +5766,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
             document.getElementById('admin-fullscreen').classList.remove('hidden');
+            loadFeatureFlags();
             refreshServerStatus();
             renderAdminAlerts();
             renderAdminTopupRequests();

@@ -934,6 +934,7 @@
                             <i class="fa-solid fa-arrow-up mr-1"></i> 루루봇으로 출금
                         </button>
                     </div>
+                    <p id="bot-withdraw-off-note" class="hidden text-[11px] text-red-500 font-semibold mt-2"><i class="fa-solid fa-circle-exclamation mr-1"></i>현재 루루봇 출금이 일시 중지되어 있어요.</p>
                 </div>
 
                 <div class="h-px bg-zinc-100 mb-4"></div>
@@ -1626,6 +1627,20 @@
                         </div>
                     </div>
                     <div id="server-status-updated" class="text-[10px] text-zinc-400 mt-3">-</div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                    <div class="flex justify-between items-center gap-3">
+                        <div class="min-w-0">
+                            <h3 class="font-bold text-sm text-zinc-900">루루봇 출금 기능</h3>
+                            <div class="flex items-center gap-2 mt-1.5">
+                                <span id="admin-botwd-dot" class="w-2.5 h-2.5 rounded-full bg-zinc-300"></span>
+                                <span id="admin-botwd-text" class="text-xs font-semibold text-zinc-500">확인 중...</span>
+                            </div>
+                            <p class="text-[11px] text-zinc-400 mt-1.5">중지하면 모든 회원의 '루루봇으로 출금'이 즉시 차단됩니다. 불러오기(충전)는 영향받지 않아요.</p>
+                        </div>
+                        <button id="admin-botwd-btn" onclick="adminToggleBotWithdraw()" class="shrink-0 text-xs font-bold px-4 py-2 rounded-xl bg-zinc-900 text-white hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed">-</button>
+                    </div>
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
