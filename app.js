@@ -5353,6 +5353,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                             '<div class="text-sm font-extrabold text-zinc-900">' + (accounts ? accounts.length : 0) + '개</div>' +
                         '</div>' +
                     '</div>' +
+                    (user.is_admin ? '' :
+                        '<button onclick="adminResetUserPin(' + jsArg(userId) + ', ' + jsArg(user.alias) + ')" class="w-full mb-4 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition-colors">' +
+                            '<i class="fa-solid fa-key mr-1.5"></i>PIN 0000으로 초기화' +
+                        '</button>') +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2">계좌 목록</h4>' +
                     accountsHtml +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2 mt-4">자동이체 설정</h4>' +
@@ -5551,6 +5555,43 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             } catch (err) {
                 console.error('계좌 정지 처리 오류:', err);
                 showToast('처리 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function adminResetUserPin(userId, alias) {
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 가능합니다.');
+                return;
+            }
+
+            const confirmed = window.confirm('\'' + alias + '\' 회원의 PIN을 0000으로 초기화할까요?\n초기화 후 회원에게 로그인해서 PIN을 바로 바꾸도록 안내해 주세요.');
+            if (!confirmed) return;
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            try {
+                const { data, error } = await adminRpc('reset_user_pin', {
+                    p_admin_pin: adminPin,
+                    p_target_user_id: userId
+                });
+                if (error) {
+                    console.error('PIN 초기화 오류:', error);
+                    showToast(adminRpcErrorMessage(error));
+                    return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row || !row.ok) {
+                    showToast(row && row.reason === 'target_is_admin'
+                        ? '관리자 계정의 PIN은 초기화할 수 없습니다.'
+                        : 'PIN을 초기화하지 못했습니다.');
+                    return;
+                }
+                showToast('\'' + alias + '\' 회원의 PIN을 0000으로 초기화했습니다.');
+            } catch (err) {
+                console.error('PIN 초기화 오류:', err);
+                showToast('PIN 초기화 중 오류가 발생했습니다.');
             }
         }
 
