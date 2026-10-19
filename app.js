@@ -1190,6 +1190,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             applyBotWithdrawState();
+            updateBotWithdrawFeePreview();
             loadFeatureFlags();
             openModal('modal-deposit');
         }
@@ -4870,6 +4871,25 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        const BOT_WITHDRAW_FEE_PERCENT = 2;
+
+        function calcBotWithdrawFee(amount) {
+            return Math.floor((amount * BOT_WITHDRAW_FEE_PERCENT) / 100);
+        }
+
+        function updateBotWithdrawFeePreview() {
+            const note = document.getElementById('bot-withdraw-fee-note');
+            if (!note) return;
+            const amtInput = document.getElementById('bot-transfer-amount');
+            const amount = amtInput ? parseAmountInput(amtInput.value) : 0;
+            if (!amount || amount <= 0) {
+                note.innerText = '출금 시 수수료 ' + BOT_WITHDRAW_FEE_PERCENT + '%가 차감됩니다.';
+                return;
+            }
+            const fee = calcBotWithdrawFee(amount);
+            note.innerText = '출금 시 수수료 ' + formatNumber(fee) + '원 차감 · 루루봇 수령 ' + formatNumber(amount - fee) + '원';
+        }
+
         async function callBankBotTransfer(direction) {
             const user = getCurrentUser();
             const activeAcc = getDepositAccount();
@@ -4901,6 +4921,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (direction === 'withdrawal' && activeAcc.balance < amount) {
                 showToast('계좌 잔액이 부족합니다.');
                 return;
+            }
+
+            if (direction === 'withdrawal') {
+                const feePreview = calcBotWithdrawFee(amount);
+                const okFee = window.confirm('출금 수수료 ' + BOT_WITHDRAW_FEE_PERCENT + '%(' + formatNumber(feePreview) + '원)가 차감되어\n' +
+                    '계좌에서 ' + formatNumber(amount) + '원이 빠지고, 루루봇에는 ' + formatNumber(amount - feePreview) + '원이 입금됩니다.\n\n진행할까요?');
+                if (!okFee) return;
             }
 
             const pin = await promptUserPin();
@@ -4949,11 +4976,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 renderApp();
                 showToast(direction === 'deposit'
                     ? '루루봇에서 ' + depositAccountLabel(activeAcc) + ' 계좌로 잔액을 불러왔습니다.'
-                    : depositAccountLabel(activeAcc) + ' 계좌에서 루루봇으로 출금했습니다.');
+                    : depositAccountLabel(activeAcc) + ' 계좌에서 루루봇으로 ' + formatNumber(data.net != null ? data.net : amount) + '원 출금했습니다. (수수료 ' + formatNumber(data.fee || 0) + '원)');
                 closeModal('modal-deposit');
 
                 if (amtInput) amtInput.value = '';
                 if (memoInput) memoInput.value = '';
+                updateBotWithdrawFeePreview();
             } catch (err) {
                 console.error('봇 연동 오류:', err);
                 showToast('처리 중 오류가 발생했습니다.');

@@ -921,11 +921,12 @@
                     </div>
                     <p class="text-[11px] text-zinc-500 mb-3">디스코드 은행봇(루루봇) 잔액과 실시간으로 주고받습니다. 먼저 마이페이지에서 디스코드 숫자 ID를 등록해 주세요.</p>
                     <div class="space-y-2 mb-3">
-                        <input type="number" id="bot-transfer-amount" placeholder="금액" step="1000" min="0"
+                        <input type="number" id="bot-transfer-amount" placeholder="금액" step="1000" min="0" oninput="updateBotWithdrawFeePreview()"
                             class="w-full bg-white border border-indigo-200 rounded-xl p-3 text-sm font-bold text-zinc-900 focus:outline-none focus:border-indigo-500">
                         <input type="text" id="bot-transfer-memo" maxlength="40" placeholder="메모 (선택)"
                             class="w-full bg-white border border-indigo-200 rounded-xl p-3 text-xs focus:outline-none focus:border-indigo-500">
                     </div>
+                    <p id="bot-withdraw-fee-note" class="text-[11px] text-indigo-600 font-semibold mb-3"></p>
                     <div class="grid grid-cols-2 gap-2">
                         <button id="bot-deposit-btn" onclick="callBankBotTransfer('deposit')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                             <i class="fa-solid fa-arrow-down mr-1"></i> 루루봇에서 불러오기
