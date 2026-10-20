@@ -5845,6 +5845,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         async function renderAdminSecurityOverview() {
             const listEl = document.getElementById('admin-security-list');
             if (!listEl) return;
+            renderAdminBotActivity();
             listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
 
             try {
@@ -5973,7 +5974,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             delete_user: '회원 삭제',
             review_topup: '충전 요청 처리',
             review_merchant: '가맹점 심사',
-            set_product_hidden: '상품 노출 변경'
+            set_product_hidden: '상품 노출 변경',
+            resolve_bot_issue: '봇 거래 확인 완료'
         };
 
         async function loadAdminAudit() {
@@ -6095,6 +6097,177 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             showToast(formatNumber(rows.length) + '건을 내보냈습니다.');
+        }
+
+
+        let adminRevenueDays = 30;
+
+        async function loadAdminRevenue(days) {
+            if (days) adminRevenueDays = days;
+            ['7', '30'].forEach(d => {
+                const b = document.getElementById('admin-rev-' + d);
+                if (b) b.className = 'text-xs font-bold px-3 py-1.5 rounded-lg ' + (String(adminRevenueDays) === d ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200');
+            });
+            const sumEl = document.getElementById('admin-rev-summary');
+            const chartEl = document.getElementById('admin-rev-chart');
+            const mEl = document.getElementById('admin-rev-merchants');
+            if (!sumEl || !chartEl || !mEl) return;
+            chartEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">불러오는 중...</div>';
+
+            try {
+                const { data, error } = await authRpc('app_admin_revenue', { p_days: adminRevenueDays });
+                if (error || !data) {
+                    chartEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+                    return;
+                }
+                const series = data.series || [];
+                const feeOf = s => (Number(s.merchant_fee) || 0) + (Number(s.bot_fee) || 0);
+                const sum = arr => arr.reduce((a, b) => a + b, 0);
+                const todayFee = series.length ? feeOf(series[series.length - 1]) : 0;
+                const weekFee = sum(series.slice(-7).map(feeOf));
+                const periodFee = sum(series.map(feeOf));
+                const periodBotFee = sum(series.map(s => Number(s.bot_fee) || 0));
+                const periodVolume = sum(series.map(s => Number(s.volume) || 0));
+
+                const tile = (label, value, sub) => '<div class="bg-zinc-50 rounded-xl p-3 border border-zinc-100">' +
+                    '<div class="text-[10px] text-zinc-400 mb-1">' + escapeHtml(label) + '</div>' +
+                    '<div class="text-sm font-extrabold text-zinc-900">' + escapeHtml(value) + '</div>' +
+                    (sub ? '<div class="text-[10px] text-zinc-400 mt-0.5">' + escapeHtml(sub) + '</div>' : '') +
+                '</div>';
+                sumEl.innerHTML =
+                    tile('오늘 수수료', formatNumber(todayFee) + '원') +
+                    tile('최근 7일 수수료', formatNumber(weekFee) + '원') +
+                    tile(adminRevenueDays + '일 수수료', formatNumber(periodFee) + '원', '봇 출금 ' + formatNumber(periodBotFee) + '원 포함') +
+                    tile(adminRevenueDays + '일 거래액', formatNumber(periodVolume) + '원', '입금 기준');
+
+                if (!series.length || periodFee === 0) {
+                    chartEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">기간 내 수수료 수익이 없습니다.</div>';
+                } else {
+                    const maxFee = Math.max(1, ...series.map(feeOf));
+                    const bars = series.map(s => {
+                        const m = Number(s.merchant_fee) || 0;
+                        const b = Number(s.bot_fee) || 0;
+                        const hm = Math.round((m / maxFee) * 100);
+                        const hb = Math.round((b / maxFee) * 100);
+                        const tip = s.day + ' · 가맹점 ' + formatNumber(m) + '원 · 봇 출금 ' + formatNumber(b) + '원';
+                        return '<div class="flex-1 min-w-0 h-full flex flex-col justify-end" title="' + escapeHtml(tip) + '">' +
+                            '<div class="w-full bg-emerald-500" style="height:' + hb + '%"></div>' +
+                            '<div class="w-full bg-zinc-900" style="height:' + hm + '%"></div>' +
+                        '</div>';
+                    }).join('');
+                    chartEl.innerHTML = '<div class="flex items-end gap-1 h-32">' + bars + '</div>' +
+                        '<div class="flex justify-between text-[10px] text-zinc-400 mt-1"><span>' + escapeHtml(String(series[0].day)) + '</span><span>' + escapeHtml(String(series[series.length - 1].day)) + '</span></div>' +
+                        '<div class="flex gap-3 text-[10px] text-zinc-500 mt-1.5">' +
+                            '<span class="flex items-center gap-1"><span class="w-2 h-2 bg-zinc-900 inline-block"></span>가맹점 수수료</span>' +
+                            '<span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-500 inline-block"></span>봇 출금 수수료</span>' +
+                        '</div>';
+                }
+
+                const tops = data.top_merchants || [];
+                mEl.innerHTML = tops.length
+                    ? '<h4 class="font-bold text-xs text-zinc-800 mb-2">' + adminRevenueDays + '일 매출 상위 가맹점</h4>' +
+                        tops.map(t => '<div class="flex justify-between items-center py-1.5 border-b border-zinc-100 last:border-0">' +
+                            '<div class="text-xs font-bold text-zinc-800 truncate">' + escapeHtml(t.name || '') + ' <span class="text-[10px] font-normal text-zinc-400">' + formatNumber(t.cnt || 0) + '건</span></div>' +
+                            '<div class="text-right shrink-0"><div class="text-xs font-bold text-zinc-900">' + formatNumber(t.sales || 0) + '원</div>' +
+                            '<div class="text-[10px] text-zinc-400">수수료 ' + formatNumber(t.fee || 0) + '원</div></div>' +
+                        '</div>').join('')
+                    : '';
+            } catch (err) {
+                console.error('수익 대시보드 조회 오류:', err);
+                chartEl.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        async function renderAdminBotIssues() {
+            const listEl = document.getElementById('admin-botissue-list');
+            const badge = document.getElementById('admin-botissue-badge');
+            if (!listEl) return;
+            listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
+
+            try {
+                const { data, error } = await authRpc('app_admin_bot_issues');
+                if (error) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+                    return;
+                }
+                const rows = data || [];
+                const open = rows.filter(r => !r.resolved).length;
+                if (badge) {
+                    if (open > 0) {
+                        badge.innerText = open > 99 ? '99+' : String(open);
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+                if (!rows.length) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">확인이 필요한 건이 없습니다.</div>';
+                    return;
+                }
+                listEl.innerHTML = rows.map(r => {
+                    const done = !!r.resolved;
+                    return '<div class="border ' + (done ? 'border-zinc-100 opacity-60' : 'border-red-200 bg-red-50/40') + ' rounded-xl p-3">' +
+                        '<div class="text-xs font-bold text-zinc-900 break-words">' + escapeHtml(r.message || '') + '</div>' +
+                        '<div class="flex justify-between items-center mt-2 gap-2">' +
+                            '<div class="text-[10px] text-zinc-400">' + formatRelativeDate(r.created_at) + ' · ' + formatNumber(r.amount || 0) + '원</div>' +
+                            (done
+                                ? '<span class="text-[10px] font-bold text-zinc-400">처리됨</span>'
+                                : '<button onclick="adminResolveBotIssue(' + jsArg(r.id) + ')" class="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-zinc-900 text-white hover:bg-black">처리 완료</button>') +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            } catch (err) {
+                console.error('봇 거래 확인 목록 조회 오류:', err);
+                listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        async function adminResolveBotIssue(alertId) {
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 가능합니다.');
+                return;
+            }
+            const ok = window.confirm('이 건을 직접 확인했고 처리가 끝났나요?\n(잔액 조정 등 필요한 조치를 먼저 해 주세요.)');
+            if (!ok) return;
+            try {
+                const { data, error } = await authRpc('app_admin_resolve_bot_issue', { p_alert_id: alertId });
+                if (error || !data || !data.ok) {
+                    showToast('처리 상태를 변경하지 못했습니다.');
+                    return;
+                }
+                showToast('처리 완료로 표시했습니다.');
+                renderAdminBotIssues();
+                loadAdminAudit();
+            } catch (err) {
+                console.error('봇 거래 확인 처리 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function renderAdminBotActivity() {
+            const listEl = document.getElementById('admin-bot-activity-list');
+            if (!listEl) return;
+            try {
+                const { data, error } = await authRpc('app_admin_bot_activity');
+                if (error) {
+                    listEl.innerHTML = '<div class="text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+                    return;
+                }
+                if (!data || !data.length) {
+                    listEl.innerHTML = '<div class="text-xs text-zinc-400">최근 24시간 출금 내역이 없습니다.</div>';
+                    return;
+                }
+                listEl.innerHTML = data.map(r =>
+                    '<div class="flex justify-between items-center text-xs">' +
+                        '<button onclick="openAdminUserDetail(' + jsArg(r.id) + ')" class="font-bold text-zinc-900 hover:underline truncate text-left">' + escapeHtml(r.alias || '') + '</button>' +
+                        '<span class="text-zinc-500 shrink-0">' + formatNumber(r.cnt || 0) + '회 · ' + formatNumber(r.total || 0) + '원</span>' +
+                    '</div>'
+                ).join('');
+            } catch (err) {
+                console.error('봇 출금 현황 조회 오류:', err);
+                listEl.innerHTML = '<div class="text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
         }
 
         async function adminDeleteUser(userId, alias) {
@@ -6342,6 +6515,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             loadAdminProducts();
             renderAdminSecurityOverview();
             loadAdminAudit();
+            loadAdminRevenue();
+            renderAdminBotIssues();
         }
 
         function closeAdminPage() {

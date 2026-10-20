@@ -1624,11 +1624,36 @@
                             <div id="stat-pending-payment-count" class="text-lg font-extrabold text-zinc-900">-</div>
                         </div>
                         <div class="bg-zinc-50 rounded-xl p-3 text-center border border-zinc-100">
-                            <div class="text-[10px] text-zinc-400 mb-1">누적 수수료 수익</div>
+                            <div class="text-[10px] text-zinc-400 mb-1">누적 수수료 수익 (가맹점+봇 출금)</div>
                             <div id="stat-fee-total" class="text-lg font-extrabold text-emerald-600">-</div>
                         </div>
                     </div>
                     <div id="server-status-updated" class="text-[10px] text-zinc-400 mt-3">-</div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2 xl:col-span-8">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-sm text-zinc-900">수익 대시보드</h3>
+                        <div class="flex gap-1.5">
+                            <button id="admin-rev-7" onclick="loadAdminRevenue(7)" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-100 text-zinc-700">7일</button>
+                            <button id="admin-rev-30" onclick="loadAdminRevenue(30)" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-zinc-900 text-white">30일</button>
+                        </div>
+                    </div>
+                    <div id="admin-rev-summary" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4"></div>
+                    <div id="admin-rev-chart"></div>
+                    <div id="admin-rev-merchants" class="mt-4"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2 xl:col-span-4">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="font-bold text-sm text-zinc-900 flex items-center gap-2">
+                            루루봇 거래 확인 필요
+                            <span id="admin-botissue-badge" class="hidden bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                        </h3>
+                        <button onclick="renderAdminBotIssues()" class="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5"><i class="fa-solid fa-rotate-right text-[10px]"></i> 새로고침</button>
+                    </div>
+                    <p class="text-[11px] text-zinc-400 mb-3">응답 불명확, 환불 실패처럼 직접 확인해야 하는 건. 확인을 끝내면 '처리 완료'를 눌러 주세요.</p>
+                    <div id="admin-botissue-list" class="space-y-2 max-h-80 overflow-y-auto no-scrollbar"></div>
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-4">
@@ -1733,7 +1758,10 @@
                         <button onclick="renderAdminSecurityOverview()" class="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5"><i class="fa-solid fa-rotate-right text-[10px]"></i> 새로고침</button>
                     </div>
                     <p class="text-[11px] text-zinc-400 mb-3">잠긴 계정, 로그인 실패가 쌓인 계정, PIN 변경 대기 계정</p>
-                    <div id="admin-security-list" class="space-y-2 max-h-80 overflow-y-auto no-scrollbar"></div>
+                    <div id="admin-security-list" class="space-y-2 max-h-60 overflow-y-auto no-scrollbar"></div>
+                    <h4 class="font-bold text-xs text-zinc-800 mt-4 mb-1">최근 24시간 루루봇 출금 상위</h4>
+                    <p class="text-[10px] text-zinc-400 mb-2">시도한 건 기준이라 실패 후 환불된 건도 포함돼요.</p>
+                    <div id="admin-bot-activity-list" class="space-y-1.5"></div>
                 </div>
 
                 <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-6">
