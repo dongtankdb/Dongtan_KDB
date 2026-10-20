@@ -3437,6 +3437,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         });
 
         function openCreateAccountModal() {
+            const me = getCurrentUser();
+            loadFeatureFlags();
+            if (me && Array.isArray(me.accounts) && me.accounts.length >= maxAccountsLimit()) {
+                showToast('계좌는 최대 ' + maxAccountsLimit() + '개까지 만들 수 있어요.');
+                return;
+            }
             const input = document.getElementById('new-account-type');
             if (input) input.value = ACCOUNT_TYPE_OPTIONS[0].value;
             renderAccountTypeDropdown();
@@ -3466,7 +3472,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 });
                 if (accErr || !accData || !accData[0]) {
                     console.error('계좌 생성 오류:', accErr);
-                    showToast('계좌 생성 중 오류가 발생했습니다.');
+                    const errMsg = (accErr && accErr.message) || '';
+                    if (errMsg.includes('account_limit')) {
+                        showToast('계좌는 최대 ' + maxAccountsLimit() + '개까지 만들 수 있어요.');
+                    } else if (errMsg.includes('invalid_name')) {
+                        showToast('계좌 이름은 30자 이내로, 특수문자(< > " \' ` \\) 없이 입력해 주세요.');
+                    } else {
+                        showToast('계좌 생성 중 오류가 발생했습니다.');
+                    }
                     if (createBtn) createBtn.disabled = false;
                     return;
                 }
@@ -4899,6 +4912,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             return state.featureFlags.bot_deposit !== false;
         }
 
+        function maxAccountsLimit() {
+            const v = Number(state.featureFlags.max_accounts);
+            return Number.isFinite(v) && v >= 1 ? Math.floor(v) : 10;
+        }
+
         function calcBotWithdrawFee(amount) {
             return Math.floor(Math.round(amount * botFeePercent() * 100) / 10000);
         }
@@ -5645,6 +5663,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const maxEl = document.getElementById('admin-set-max');
             if (feeEl && document.activeElement !== feeEl) feeEl.value = botFeePercent();
             if (maxEl && document.activeElement !== maxEl) maxEl.value = botWithdrawMax();
+            const maxAccEl = document.getElementById('admin-set-maxacc');
+            if (maxAccEl && document.activeElement !== maxAccEl) maxAccEl.value = maxAccountsLimit();
 
             const on = isBotDepositEnabled();
             const dot = document.getElementById('admin-botdep-dot');
@@ -5723,7 +5743,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const unit = key === 'bot_withdraw_fee_percent' ? '%' : '원';
+            const unit = key === 'bot_withdraw_fee_percent' ? '%' : (key === 'max_accounts' ? '개' : '원');
             const ok = window.confirm(label + '을(를) ' + formatNumber(value) + unit + '(으)로 변경할까요?');
             if (!ok) return;
 
@@ -5744,7 +5764,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 const row = Array.isArray(data) ? data[0] : data;
                 if (!row || !row.ok) {
                     showToast(row && row.reason === 'invalid_value'
-                        ? '허용 범위를 벗어난 값입니다. (수수료율 0~20%, 한도 1,000원 이상)'
+                        ? '허용 범위를 벗어난 값입니다. (수수료율 0~20%, 출금 한도 1,000원 이상, 계좌 한도 1~50개)'
                         : '설정을 변경하지 못했습니다.');
                     return;
                 }
