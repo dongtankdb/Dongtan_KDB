@@ -1580,7 +1580,7 @@
     <div id="overlay-toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[700] bg-zinc-900 text-white text-xs font-medium px-4 py-3 rounded-2xl shadow-2xl max-w-[90vw]"></div>
 
     <div id="admin-fullscreen" class="hidden fixed inset-0 z-[500] bg-zinc-100 overflow-y-auto">
-        <div class="max-w-4xl mx-auto py-8 px-5">
+        <div class="w-full max-w-[1800px] mx-auto py-8 px-5 md:px-8">
             <div class="flex justify-between items-center mb-6">
                 <h1 class="text-xl font-bold text-zinc-900">KDB Pay 관리자 페이지</h1>
                 <button onclick="closeAdminPage()" class="bg-zinc-900 hover:bg-black text-white px-4 py-2 rounded-xl text-sm font-semibold">
@@ -1588,8 +1588,8 @@
                 </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 grid-flow-dense gap-5">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2 xl:col-span-12">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-bold text-sm text-zinc-900">서버 상태</h3>
                         <button onclick="refreshServerStatus()" class="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5">
@@ -1630,7 +1630,7 @@
                     <div id="server-status-updated" class="text-[10px] text-zinc-400 mt-3">-</div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-4">
                     <div class="flex justify-between items-center gap-3">
                         <div class="min-w-0">
                             <h3 class="font-bold text-sm text-zinc-900">루루봇 출금 기능</h3>
@@ -1644,17 +1644,17 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2 xl:col-span-8">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-bold text-sm text-zinc-900">쇼핑 상품 관리</h3>
                         <button onclick="loadAdminProducts()" class="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5">
                             <i class="fa-solid fa-rotate-right text-[10px]"></i> 새로고침
                         </button>
                     </div>
-                    <div id="admin-products-list" class="space-y-2 max-h-80 overflow-y-auto"></div>
+                    <div id="admin-products-list" class="space-y-2 max-h-80 xl:max-h-[22rem] overflow-y-auto"></div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-4">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-bold text-sm text-zinc-900 flex items-center gap-2">
                             고액 이체 알림
@@ -1667,7 +1667,7 @@
                     <div id="admin-alert-list" class="space-y-2"></div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-4">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-bold text-sm text-zinc-900 flex items-center gap-2">
                             충전 요청 대기
@@ -1680,30 +1680,30 @@
                     <div id="admin-topup-list" class="space-y-2"></div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-4">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">가맹점 승인 대기</h3>
                     <div id="admin-merchant-pending-list" class="space-y-2"></div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-6">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">회원 검색 / 잔액 수정</h3>
                     <input type="text" id="admin-user-search" oninput="debouncedRenderAdminUserList(this.value)" placeholder="닉네임 또는 디스코드로 검색"
                         class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs mb-3 focus:outline-none focus:border-zinc-900">
-                    <div id="admin-user-list" class="space-y-2 max-h-96 overflow-y-auto no-scrollbar"></div>
+                    <div id="admin-user-list" class="space-y-2 max-h-96 xl:max-h-[32rem] overflow-y-auto no-scrollbar"></div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 xl:col-span-6">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">가맹점 목록</h3>
                     <input type="text" id="admin-merchant-search" oninput="debouncedRenderAdminMerchantList(this.value)" placeholder="가맹점명으로 검색"
                         class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs mb-3 focus:outline-none focus:border-zinc-900">
-                    <div id="admin-merchant-list" class="space-y-2 max-h-96 overflow-y-auto no-scrollbar"></div>
+                    <div id="admin-merchant-list" class="space-y-2 max-h-96 xl:max-h-[32rem] overflow-y-auto no-scrollbar"></div>
                 </div>
 
-                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2">
+                <div class="bg-white rounded-2xl border border-zinc-200 shadow-sm p-5 md:col-span-2 xl:col-span-12">
                     <h3 class="font-bold text-sm text-zinc-900 mb-3">전체 거래내역 검색</h3>
                     <input type="text" id="admin-tx-search" oninput="debouncedRenderAdminTransactionSearch(this.value)" placeholder="거래 제목 또는 상대방 이름으로 검색"
                         class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs mb-3 focus:outline-none focus:border-zinc-900">
-                    <div id="admin-tx-list" class="space-y-2 max-h-96 overflow-y-auto no-scrollbar"></div>
+                    <div id="admin-tx-list" class="space-y-2 max-h-96 xl:max-h-[32rem] overflow-y-auto no-scrollbar"></div>
                 </div>
             </div>
         </div>
