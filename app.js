@@ -4814,6 +4814,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (wBtn) wBtn.disabled = !on;
             if (note) note.classList.toggle('hidden', on);
 
+            const depOn = isBotDepositEnabled();
+            const dBtn = document.getElementById('bot-deposit-btn');
+            const dNote = document.getElementById('bot-deposit-off-note');
+            if (dBtn) dBtn.disabled = !depOn;
+            if (dNote) dNote.classList.toggle('hidden', depOn);
+
             const dot = document.getElementById('admin-botwd-dot');
             const text = document.getElementById('admin-botwd-text');
             const aBtn = document.getElementById('admin-botwd-btn');
@@ -4828,6 +4834,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     (on ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700');
                 aBtn.disabled = isTogglingBotWithdraw;
             }
+
+            renderAdminSettings();
+            updateBotWithdrawFeePreview();
         }
 
         async function adminToggleBotWithdraw() {
@@ -4876,10 +4885,22 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
-        const BOT_WITHDRAW_FEE_PERCENT = 2;
+        function botFeePercent() {
+            const v = Number(state.featureFlags.bot_withdraw_fee_percent);
+            return Number.isFinite(v) && v >= 0 && v <= 20 ? v : 2;
+        }
+
+        function botWithdrawMax() {
+            const v = Number(state.featureFlags.bot_withdraw_max);
+            return Number.isFinite(v) && v > 0 ? v : 100000000;
+        }
+
+        function isBotDepositEnabled() {
+            return state.featureFlags.bot_deposit !== false;
+        }
 
         function calcBotWithdrawFee(amount) {
-            return Math.floor((amount * BOT_WITHDRAW_FEE_PERCENT) / 100);
+            return Math.floor(Math.round(amount * botFeePercent() * 100) / 10000);
         }
 
         function updateBotWithdrawFeePreview() {
@@ -4888,7 +4909,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const amtInput = document.getElementById('bot-transfer-amount');
             const amount = amtInput ? parseAmountInput(amtInput.value) : 0;
             if (!amount || amount <= 0) {
-                note.innerText = '출금 시 수수료 ' + BOT_WITHDRAW_FEE_PERCENT + '%가 차감됩니다.';
+                note.innerText = '출금 시 수수료 ' + botFeePercent() + '%가 차감됩니다.';
                 return;
             }
             const fee = calcBotWithdrawFee(amount);
@@ -4905,12 +4926,14 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            if (direction === 'withdrawal') {
-                await loadFeatureFlags();
-                if (!isBotWithdrawEnabled()) {
-                    showToast('현재 루루봇 출금이 일시 중지되어 있습니다.');
-                    return;
-                }
+            await loadFeatureFlags();
+            if (direction === 'withdrawal' && !isBotWithdrawEnabled()) {
+                showToast('현재 루루봇 출금이 일시 중지되어 있습니다.');
+                return;
+            }
+            if (direction === 'deposit' && !isBotDepositEnabled()) {
+                showToast('현재 루루봇 충전이 일시 중지되어 있습니다.');
+                return;
             }
 
             const amtInput = document.getElementById('bot-transfer-amount');
@@ -4923,6 +4946,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
+            if (direction === 'withdrawal' && amount > botWithdrawMax()) {
+                showToast('1회 출금 한도는 ' + formatNumber(botWithdrawMax()) + '원입니다.');
+                return;
+            }
+
             if (direction === 'withdrawal' && activeAcc.balance < amount) {
                 showToast('계좌 잔액이 부족합니다.');
                 return;
@@ -4930,7 +4958,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             if (direction === 'withdrawal') {
                 const feePreview = calcBotWithdrawFee(amount);
-                const okFee = window.confirm('출금 수수료 ' + BOT_WITHDRAW_FEE_PERCENT + '%(' + formatNumber(feePreview) + '원)가 차감되어\n' +
+                const okFee = window.confirm('출금 수수료 ' + botFeePercent() + '%(' + formatNumber(feePreview) + '원)가 차감되어\n' +
                     '계좌에서 ' + formatNumber(amount) + '원이 빠지고, 루루봇에는 ' + formatNumber(amount - feePreview) + '원이 입금됩니다.\n\n진행할까요?');
                 if (!okFee) return;
             }
@@ -5362,12 +5390,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         '<button onclick="adminResetUserPin(' + jsArg(userId) + ', ' + jsArg(user.alias) + ')" class="w-full mb-4 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition-colors">' +
                             '<i class="fa-solid fa-key mr-1.5"></i>PIN 0000으로 초기화' +
                         '</button>') +
+                    '<button onclick="adminPrepareNoticeTo(' + jsArg(userId) + ', ' + jsArg(user.alias) + ')" class="w-full mb-4 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-bold py-2.5 rounded-xl text-xs transition-colors">' +
+                        '<i class="fa-solid fa-bell mr-1.5"></i>이 회원에게 알림 보내기' +
+                    '</button>' +
+                    '<div id="admin-user-security" class="mb-4" data-admin="' + (user.is_admin ? '1' : '') + '" data-alias="' + escapeHtml(user.alias) + '"></div>' +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2">계좌 목록</h4>' +
                     accountsHtml +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2 mt-4">자동이체 설정</h4>' +
                     autoTransferHtml +
                     '<h4 class="font-bold text-xs text-zinc-800 mb-2 mt-4">최근 거래내역 (최대 30건)</h4>' +
                     '<div class="border border-zinc-200 rounded-xl p-3">' + txHtml + '</div>';
+                loadAdminUserSecurity(userId);
             } catch (err) {
                 console.error('고객 상세 조회 오류:', err);
                 body.innerHTML = '<div class="text-center py-6 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -5600,6 +5633,470 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+
+        state.noticeTarget = null;
+        state.adminTxData = [];
+        state.adminTxFiltered = [];
+
+        let isTogglingBotDeposit = false;
+
+        function renderAdminSettings() {
+            const feeEl = document.getElementById('admin-set-fee');
+            const maxEl = document.getElementById('admin-set-max');
+            if (feeEl && document.activeElement !== feeEl) feeEl.value = botFeePercent();
+            if (maxEl && document.activeElement !== maxEl) maxEl.value = botWithdrawMax();
+
+            const on = isBotDepositEnabled();
+            const dot = document.getElementById('admin-botdep-dot');
+            const text = document.getElementById('admin-botdep-text');
+            const btn = document.getElementById('admin-botdep-btn');
+            if (dot) dot.className = 'w-2.5 h-2.5 rounded-full ' + (on ? 'bg-emerald-500' : 'bg-red-500');
+            if (text) {
+                text.innerText = on ? '가동 중' : '중지됨';
+                text.className = 'text-xs font-semibold ' + (on ? 'text-emerald-600' : 'text-red-600');
+            }
+            if (btn) {
+                btn.innerText = on ? '충전 중지하기' : '충전 가동하기';
+                btn.className = 'shrink-0 text-xs font-bold px-4 py-2 rounded-xl text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
+                    (on ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700');
+                btn.disabled = isTogglingBotDeposit;
+            }
+        }
+
+        async function adminToggleBotDeposit() {
+            if (isTogglingBotDeposit) return;
+            const user = getCurrentUser();
+            if (!user || !user.isAdmin) {
+                showToast('관리자만 변경할 수 있습니다.');
+                return;
+            }
+
+            const next = !isBotDepositEnabled();
+            const ok = window.confirm(next
+                ? '루루봇 충전 기능을 다시 가동할까요?'
+                : '루루봇 충전 기능을 중지할까요?\n모든 회원의 루루봇 충전이 즉시 차단됩니다.');
+            if (!ok) return;
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            isTogglingBotDeposit = true;
+            renderAdminSettings();
+            try {
+                const { data, error } = await adminRpc('set_feature', {
+                    p_admin_pin: adminPin,
+                    p_key: 'bot_deposit',
+                    p_enabled: next
+                });
+                if (error) {
+                    console.error('충전 스위치 변경 오류:', error);
+                    showToast(adminRpcErrorMessage(error));
+                    return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row || !row.ok) {
+                    showToast('설정을 변경하지 못했습니다.');
+                    return;
+                }
+                state.featureFlags.bot_deposit = next;
+                showToast(next ? '루루봇 충전을 가동했습니다.' : '루루봇 충전을 중지했습니다.');
+            } catch (err) {
+                console.error('충전 스위치 변경 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            } finally {
+                isTogglingBotDeposit = false;
+                applyBotWithdrawState();
+            }
+        }
+
+        async function adminSaveSetting(key, inputId, label) {
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 변경할 수 있습니다.');
+                return;
+            }
+            const el = document.getElementById(inputId);
+            const raw = el ? String(el.value).trim() : '';
+            const value = raw === '' ? NaN : Number(raw);
+            if (!Number.isFinite(value)) {
+                showToast('숫자를 입력해 주세요.');
+                return;
+            }
+
+            const unit = key === 'bot_withdraw_fee_percent' ? '%' : '원';
+            const ok = window.confirm(label + '을(를) ' + formatNumber(value) + unit + '(으)로 변경할까요?');
+            if (!ok) return;
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            try {
+                const { data, error } = await adminRpc('set_setting', {
+                    p_admin_pin: adminPin,
+                    p_key: key,
+                    p_value: value
+                });
+                if (error) {
+                    console.error('운영 설정 변경 오류:', error);
+                    showToast(adminRpcErrorMessage(error));
+                    return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row || !row.ok) {
+                    showToast(row && row.reason === 'invalid_value'
+                        ? '허용 범위를 벗어난 값입니다. (수수료율 0~20%, 한도 1,000원 이상)'
+                        : '설정을 변경하지 못했습니다.');
+                    return;
+                }
+                state.featureFlags[key] = value;
+                applyBotWithdrawState();
+                loadAdminAudit();
+                showToast(label + '을(를) 변경했습니다.');
+            } catch (err) {
+                console.error('운영 설정 변경 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            }
+        }
+
+        function renderNoticeTarget() {
+            const label = document.getElementById('admin-notice-target');
+            const resetBtn = document.getElementById('admin-notice-reset');
+            if (label) label.innerText = state.noticeTarget ? state.noticeTarget.alias : '전체 회원';
+            if (resetBtn) resetBtn.classList.toggle('hidden', !state.noticeTarget);
+        }
+
+        function adminPrepareNoticeTo(userId, alias) {
+            state.noticeTarget = { id: userId, alias: alias };
+            closeAdminUserDetail();
+            renderNoticeTarget();
+            const titleEl = document.getElementById('admin-notice-title');
+            if (titleEl) {
+                titleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => titleEl.focus(), 350);
+            }
+        }
+
+        function adminResetNoticeTarget() {
+            state.noticeTarget = null;
+            renderNoticeTarget();
+        }
+
+        async function adminSendNotice() {
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 보낼 수 있습니다.');
+                return;
+            }
+            const titleEl = document.getElementById('admin-notice-title');
+            const bodyEl = document.getElementById('admin-notice-body');
+            const title = titleEl ? titleEl.value.trim() : '';
+            const body = bodyEl ? bodyEl.value.trim() : '';
+            if (!title || !body) {
+                showToast('제목과 내용을 모두 입력해 주세요.');
+                return;
+            }
+
+            const target = state.noticeTarget;
+            const ok = window.confirm((target ? "'" + target.alias + "' 회원에게" : '전체 회원에게') + ' 알림을 보낼까요?\n\n제목: ' + title);
+            if (!ok) return;
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            try {
+                const { data, error } = await adminRpc('broadcast', {
+                    p_admin_pin: adminPin,
+                    p_title: title,
+                    p_body: body,
+                    p_target_user_id: target ? target.id : null
+                });
+                if (error) {
+                    console.error('알림 발송 오류:', error);
+                    showToast(adminRpcErrorMessage(error));
+                    return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row || !row.ok) {
+                    showToast(row && row.reason === 'invalid_input'
+                        ? '제목은 50자, 내용은 300자 이내로 입력해 주세요.'
+                        : '알림을 보내지 못했습니다.');
+                    return;
+                }
+                if (titleEl) titleEl.value = '';
+                if (bodyEl) bodyEl.value = '';
+                state.noticeTarget = null;
+                renderNoticeTarget();
+                loadAdminAudit();
+                showToast(formatNumber(row.count || 0) + '명에게 알림을 보냈습니다.');
+            } catch (err) {
+                console.error('알림 발송 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            }
+        }
+
+        function formatLockTime(value) {
+            try {
+                return new Date(value).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            } catch (err) {
+                return '';
+            }
+        }
+
+        async function renderAdminSecurityOverview() {
+            const listEl = document.getElementById('admin-security-list');
+            if (!listEl) return;
+            listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
+
+            try {
+                const { data, error } = await authRpc('app_admin_security_overview');
+                if (error) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+                    return;
+                }
+                if (!data || data.length === 0) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">주의할 계정이 없습니다.</div>';
+                    return;
+                }
+
+                listEl.innerHTML = data.map(u => {
+                    const tags = [];
+                    if (u.locked_until) tags.push('<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">잠김 ' + escapeHtml(formatLockTime(u.locked_until)) + '까지</span>');
+                    if ((u.failed_attempts || 0) > 0) tags.push('<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">실패 ' + (u.failed_attempts || 0) + '회</span>');
+                    if (u.must_change_pin) tags.push('<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">PIN 변경 대기</span>');
+                    const unlockBtn = (u.locked_until || (u.failed_attempts || 0) > 0)
+                        ? '<button onclick="adminUserSecurityAction(' + jsArg(u.id) + ', ' + jsArg(u.alias) + ', \'unlock\')" class="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-zinc-900 text-white hover:bg-black">잠금 해제</button>'
+                        : '';
+                    return '<div class="border border-zinc-200 rounded-xl p-3 flex justify-between items-center gap-2">' +
+                        '<div class="min-w-0">' +
+                            '<button onclick="openAdminUserDetail(' + jsArg(u.id) + ')" class="text-xs font-bold text-zinc-900 truncate hover:underline text-left">' + escapeHtml(u.alias) + '</button>' +
+                            '<div class="flex flex-wrap gap-1 mt-1">' + tags.join('') + '</div>' +
+                        '</div>' +
+                        unlockBtn +
+                    '</div>';
+                }).join('');
+            } catch (err) {
+                console.error('보안 현황 조회 오류:', err);
+                listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        async function loadAdminUserSecurity(userId) {
+            const el = document.getElementById('admin-user-security');
+            if (!el) return;
+            el.dataset.uid = userId;
+            try {
+                const { data, error } = await authRpc('app_admin_user_security', { p_user_id: userId });
+                if (error || !data || !data.ok) {
+                    el.innerHTML = '';
+                    return;
+                }
+                const alias = el.dataset.alias || '';
+                const isAdminTarget = el.dataset.admin === '1';
+                const locked = !!data.locked_until;
+                const failed = data.failed_attempts || 0;
+                const lines = [];
+                lines.push('로그인 실패 ' + failed + '회');
+                if (locked) lines.push('잠김 (' + formatLockTime(data.locked_until) + '까지)');
+                if (data.must_change_pin) lines.push('초기화된 PIN 변경 대기 중');
+
+                const buttons = [];
+                if (locked || failed > 0) {
+                    buttons.push('<button onclick="adminUserSecurityAction(' + jsArg(userId) + ', ' + jsArg(alias) + ', \'unlock\')" class="flex-1 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-bold py-2 rounded-xl text-[11px]">잠금 해제</button>');
+                }
+                if (!isAdminTarget) {
+                    buttons.push('<button onclick="adminUserSecurityAction(' + jsArg(userId) + ', ' + jsArg(alias) + ', \'kill_sessions\')" class="flex-1 bg-white border border-zinc-200 hover:bg-zinc-50 text-zinc-800 font-bold py-2 rounded-xl text-[11px]">로그인 세션 강제 종료</button>');
+                }
+
+                el.innerHTML = '<div class="border border-zinc-200 rounded-xl p-3">' +
+                    '<div class="text-xs font-bold text-zinc-800 mb-1.5"><i class="fa-solid fa-shield-halved mr-1.5 text-zinc-400"></i>보안 상태</div>' +
+                    '<div class="text-[11px] text-zinc-500 space-y-0.5">' + lines.map(l => '<div>' + escapeHtml(l) + '</div>').join('') + '</div>' +
+                    (buttons.length ? '<div class="flex gap-2 mt-2.5">' + buttons.join('') + '</div>' : '') +
+                '</div>';
+            } catch (err) {
+                console.error('회원 보안 상태 조회 오류:', err);
+                el.innerHTML = '';
+            }
+        }
+
+        async function adminUserSecurityAction(userId, alias, action) {
+            const admin = getCurrentUser();
+            if (!admin || !admin.isAdmin) {
+                showToast('관리자만 가능합니다.');
+                return;
+            }
+            const label = action === 'unlock' ? '로그인 잠금 해제' : '로그인 세션 강제 종료';
+            const ok = window.confirm("'" + alias + "' 회원의 " + label + '을(를) 진행할까요?');
+            if (!ok) return;
+
+            const adminPin = await promptAdminPin();
+            if (!adminPin) return;
+
+            try {
+                const { data, error } = await adminRpc('user_security_action', {
+                    p_admin_pin: adminPin,
+                    p_target_user_id: userId,
+                    p_action: action
+                });
+                if (error) {
+                    console.error('보안 작업 오류:', error);
+                    showToast(adminRpcErrorMessage(error));
+                    return;
+                }
+                const row = Array.isArray(data) ? data[0] : data;
+                if (!row || !row.ok) {
+                    showToast(row && row.reason === 'target_is_admin'
+                        ? '관리자 계정의 세션은 종료할 수 없습니다.'
+                        : '처리하지 못했습니다.');
+                    return;
+                }
+                showToast("'" + alias + "' 회원: " + label + ' 완료');
+                renderAdminSecurityOverview();
+                loadAdminAudit();
+                const secEl = document.getElementById('admin-user-security');
+                if (secEl && secEl.dataset.uid === userId) loadAdminUserSecurity(userId);
+            } catch (err) {
+                console.error('보안 작업 오류:', err);
+                showToast('처리 중 오류가 발생했습니다.');
+            }
+        }
+
+        const ADMIN_ACTION_LABELS = {
+            set_feature: '기능 스위치',
+            set_setting: '운영 설정',
+            reset_pin: 'PIN 초기화',
+            broadcast: '알림 발송',
+            unlock_user: '잠금 해제',
+            kill_sessions: '세션 종료',
+            freeze_account: '계좌 정지',
+            unfreeze_account: '계좌 정지 해제',
+            adjust_balance: '잔액 조정',
+            delete_user: '회원 삭제',
+            review_topup: '충전 요청 처리',
+            review_merchant: '가맹점 심사',
+            set_product_hidden: '상품 노출 변경'
+        };
+
+        async function loadAdminAudit() {
+            const listEl = document.getElementById('admin-audit-list');
+            if (!listEl) return;
+            listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">불러오는 중...</div>';
+
+            try {
+                const { data, error } = await authRpc('app_admin_audit_list', { p_limit: 100 });
+                if (error) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+                    return;
+                }
+                if (!data || data.length === 0) {
+                    listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">기록이 없습니다.</div>';
+                    return;
+                }
+                listEl.innerHTML = data.map(a => {
+                    const label = ADMIN_ACTION_LABELS[a.action] || a.action;
+                    const summary = a.detail && a.detail.summary ? a.detail.summary : '';
+                    let when = '';
+                    try { when = new Date(a.at).toLocaleString('ko-KR'); } catch (err) { when = ''; }
+                    return '<div class="border border-zinc-100 rounded-xl px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-0.5">' +
+                        '<span class="text-[10px] text-zinc-400 font-mono shrink-0">' + escapeHtml(when) + '</span>' +
+                        '<span class="text-xs font-bold text-zinc-900">' + escapeHtml(a.admin_alias || a.admin_id) + '</span>' +
+                        '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-600">' + escapeHtml(label) + '</span>' +
+                        (a.target ? '<span class="text-xs text-zinc-600">' + escapeHtml(a.target) + '</span>' : '') +
+                        (summary ? '<span class="text-[11px] text-zinc-400">' + escapeHtml(summary) + '</span>' : '') +
+                    '</div>';
+                }).join('');
+            } catch (err) {
+                console.error('관리자 활동 기록 조회 오류:', err);
+                listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
+            }
+        }
+
+        function renderAdminTxFiltered() {
+            const listEl = document.getElementById('admin-tx-list');
+            const sumEl = document.getElementById('admin-tx-summary');
+            if (!listEl) return;
+
+            const all = state.adminTxData || [];
+            if (!all.length) return;
+
+            const type = (document.getElementById('admin-tx-type') || {}).value || '';
+            const minVal = Number((document.getElementById('admin-tx-min') || {}).value);
+            const maxVal = Number((document.getElementById('admin-tx-max') || {}).value);
+            const fromRaw = (document.getElementById('admin-tx-from') || {}).value || '';
+            const toRaw = (document.getElementById('admin-tx-to') || {}).value || '';
+            const fromDate = fromRaw ? new Date(fromRaw + 'T00:00:00') : null;
+            const toDate = toRaw ? new Date(toRaw + 'T23:59:59.999') : null;
+
+            const filtered = all.filter(t => {
+                const amt = Number(t.amount) || 0;
+                const abs = Math.abs(amt);
+                if (type === 'in' && !(amt > 0)) return false;
+                if (type === 'out' && !(amt < 0)) return false;
+                if (minVal > 0 && abs < minVal) return false;
+                if (maxVal > 0 && abs > maxVal) return false;
+                if (fromDate || toDate) {
+                    const d = new Date(t.created_at);
+                    if (fromDate && d < fromDate) return false;
+                    if (toDate && d > toDate) return false;
+                }
+                return true;
+            });
+            state.adminTxFiltered = filtered;
+
+            const inSum = filtered.reduce((s, t) => s + (Number(t.amount) > 0 ? Number(t.amount) : 0), 0);
+            const outSum = filtered.reduce((s, t) => s + (Number(t.amount) < 0 ? Number(t.amount) : 0), 0);
+            if (sumEl) {
+                sumEl.innerText = formatNumber(filtered.length) + '건 · 입금 합계 +' + formatNumber(inSum) + '원 · 출금 합계 ' + formatNumber(outSum) + '원';
+            }
+
+            if (!filtered.length) {
+                listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조건에 맞는 거래내역이 없습니다.</div>';
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(t => {
+                const isPositive = t.amount > 0;
+                const amtClass = isPositive ? 'text-emerald-600' : 'text-zinc-900';
+                const sign = isPositive ? '+' : '';
+                return '<div class="border border-zinc-200 rounded-xl p-3 flex justify-between items-center">' +
+                    '<div>' +
+                        '<div class="text-xs font-bold text-zinc-900">' + escapeHtml(t.title) + '</div>' +
+                        '<div class="text-[10px] text-zinc-400">' + formatRelativeDate(t.created_at) + '</div>' +
+                    '</div>' +
+                    '<div class="text-xs font-bold ' + amtClass + '">' + sign + formatNumber(t.amount) + '원</div>' +
+                '</div>';
+            }).join('');
+        }
+
+        function csvCell(value) {
+            let s = String(value == null ? '' : value);
+            if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+            return '"' + s.replace(/"/g, '""') + '"';
+        }
+
+        function adminExportTxCsv() {
+            const rows = (state.adminTxFiltered && state.adminTxFiltered.length) ? state.adminTxFiltered : (state.adminTxData || []);
+            if (!rows.length) {
+                showToast('내보낼 거래내역이 없습니다.');
+                return;
+            }
+            const lines = ['일시,제목,금액'];
+            rows.forEach(t => {
+                let when = '';
+                try { when = new Date(t.created_at).toLocaleString('ko-KR'); } catch (err) { when = ''; }
+                lines.push([csvCell(when), csvCell(t.title), Number(t.amount) || 0].join(','));
+            });
+            const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'kdb-pay-transactions-' + new Date().toISOString().slice(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showToast(formatNumber(rows.length) + '건을 내보냈습니다.');
+        }
+
         async function adminDeleteUser(userId, alias) {
             const confirmed = window.confirm('정말로 \'' + alias + '\' 계정을 완전히 삭제하시겠습니까?\n계좌, 거래내역, 알림 등 관련 데이터가 모두 함께 삭제되며 되돌릴 수 없습니다.');
             if (!confirmed) return;
@@ -5751,22 +6248,16 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 if (!txs || txs.length === 0) {
+                    state.adminTxData = [];
+                    state.adminTxFiltered = [];
+                    const sumEl0 = document.getElementById('admin-tx-summary');
+                    if (sumEl0) sumEl0.innerText = '';
                     listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">일치하는 거래내역이 없습니다.</div>';
                     return;
                 }
 
-                listEl.innerHTML = txs.map(t => {
-                    const isPositive = t.amount > 0;
-                    const amtClass = isPositive ? 'text-emerald-600' : 'text-zinc-900';
-                    const sign = isPositive ? '+' : '';
-                    return '<div class="border border-zinc-200 rounded-xl p-3 flex justify-between items-center">' +
-                        '<div>' +
-                            '<div class="text-xs font-bold text-zinc-900">' + escapeHtml(t.title) + '</div>' +
-                            '<div class="text-[10px] text-zinc-400">' + formatRelativeDate(t.created_at) + '</div>' +
-                        '</div>' +
-                        '<div class="text-xs font-bold ' + amtClass + '">' + sign + formatNumber(t.amount) + '원</div>' +
-                    '</div>';
-                }).join('');
+                state.adminTxData = txs;
+                renderAdminTxFiltered();
             } catch (err) {
                 console.error('관리자 거래내역 조회 오류:', err);
                 listEl.innerHTML = '<div class="text-center py-4 text-xs text-zinc-400">조회 중 오류가 발생했습니다.</div>';
@@ -5849,6 +6340,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             renderAdminMerchantList('');
             renderAdminTransactionSearch('');
             loadAdminProducts();
+            renderAdminSecurityOverview();
+            loadAdminAudit();
         }
 
         function closeAdminPage() {
