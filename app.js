@@ -1788,6 +1788,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             document.getElementById('auth-screen').classList.add('hidden-auth');
             renderApp();
             showToast(row.alias + '님 환영합니다!');
+            if (loginResult.must_change_pin) {
+                openForcedChangePinModal();
+            } else {
+                state.forcePinChange = false;
+            }
             runDueAutoTransfers();
         }
 
@@ -6471,6 +6476,23 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             setTimeout(() => { const el = document.getElementById('change-pin-old'); if (el) el.focus(); }, 320);
         }
 
+        function dismissChangePinModal() {
+            if (state.forcePinChange) {
+                showToast('초기화된 PIN은 반드시 변경해야 합니다.');
+                return;
+            }
+            closeModal('modal-change-pin');
+        }
+
+        function openForcedChangePinModal() {
+            state.forcePinChange = true;
+            openChangePinModal();
+            const oldEl = document.getElementById('change-pin-old');
+            if (oldEl) oldEl.value = '0000';
+            setTimeout(() => { const el = document.getElementById('change-pin-new'); if (el) el.focus(); }, 340);
+            showToast('관리자가 PIN을 초기화했습니다. 새 PIN으로 바꿔 주세요.');
+        }
+
         let _pinChanging = false;
         async function executeChangePin() {
             const user = getCurrentUser();
@@ -6490,10 +6512,21 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (btn) { btn.disabled = true; btn.innerText = '변경 중...'; }
 
             try {
-                const { error } = await authRpc('app_change_pin', {
+                const { data: pinData, error } = await authRpc('app_change_pin', {
                     p_old_pin: oldPin,
                     p_new_pin: newPin
                 });
+
+                if (pinData && pinData.ok === false) {
+                    if (pinData.reason === 'locked') {
+                        const secs = Number(pinData.seconds_remaining) || 0;
+                        const mins = Math.max(1, Math.ceil(secs / 60));
+                        showChangePinError('PIN을 여러 번 틀려 잠겼습니다. ' + (secs > 0 ? mins + '분' : '잠시') + ' 후 다시 시도해 주세요.');
+                    } else {
+                        showChangePinError('현재 PIN이 일치하지 않습니다.');
+                    }
+                    return;
+                }
 
                 if (error) {
                     const msg = error.message || '';
@@ -6514,6 +6547,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 }
 
                 closeModal('modal-change-pin');
+                state.forcePinChange = false;
                 ['change-pin-old', 'change-pin-new', 'change-pin-confirm'].forEach(id => {
                     const el = document.getElementById(id); if (el) el.value = '';
                 });
