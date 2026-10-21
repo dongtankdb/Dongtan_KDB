@@ -50,6 +50,31 @@
 </script>
 
     <link rel="stylesheet" href="style.css?v=20261011">
+<style id="toss-pin-style">
+        #pin-screen { position: fixed; inset: 0; z-index: 800; background: #ffffff; color: #191f28; display: flex; flex-direction: column; align-items: center; transform: translateY(100%); opacity: 0; visibility: hidden; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s ease, visibility 0s linear .26s; touch-action: manipulation; overscroll-behavior: none; }
+        #pin-screen.open { transform: none; opacity: 1; visibility: visible; transition: transform .26s cubic-bezier(.2,.8,.2,1), opacity .2s ease, visibility 0s; }
+        #pin-screen .tp-inner { width: 100%; max-width: 420px; height: 100%; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0px) 24px calc(env(safe-area-inset-bottom, 0px) + 12px); box-sizing: border-box; }
+        #pin-screen .tp-top { height: 56px; display: flex; align-items: center; flex-shrink: 0; }
+        #pin-screen .tp-close { width: 40px; height: 40px; margin-left: -10px; border: 0; background: transparent; color: #4e5968; font-size: 20px; border-radius: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        #pin-screen .tp-close:active { background: #f2f4f6; }
+        #pin-screen .tp-title { margin: 20px 0 0; font-size: 24px; line-height: 1.35; font-weight: 700; letter-spacing: -0.02em; color: inherit; }
+        #pin-screen .tp-desc { margin: 8px 0 0; min-height: 20px; font-size: 14px; line-height: 1.5; color: #8b95a1; }
+        #pin-screen .tp-dots { display: flex; justify-content: center; gap: 16px; margin-top: 56px; }
+        #pin-screen .tp-dot { width: 14px; height: 14px; border-radius: 50%; background: #e5e8eb; transition: background .12s ease, transform .12s ease; }
+        #pin-screen .tp-dot.on { background: #191f28; transform: scale(1.15); }
+        #pin-screen .tp-pad { margin-top: auto; display: grid; grid-template-columns: repeat(3, 1fr); row-gap: 4px; }
+        #pin-screen .tp-key { height: clamp(56px, 9dvh, 72px); border: 0; background: transparent; color: #191f28; font-size: 26px; font-weight: 600; border-radius: 16px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: inherit; }
+        #pin-screen .tp-key:active { background: #f2f4f6; }
+        #pin-screen .tp-key.tp-ghost { visibility: hidden; pointer-events: none; }
+        html.dark #pin-screen { background: #17171c; color: #f2f4f6; }
+        html.dark #pin-screen .tp-close { color: #b0b8c1; }
+        html.dark #pin-screen .tp-close:active, html.dark #pin-screen .tp-key:active { background: #26262c; }
+        html.dark #pin-screen .tp-desc { color: #9aa0a6; }
+        html.dark #pin-screen .tp-dot { background: #3a3a42; }
+        html.dark #pin-screen .tp-dot.on { background: #f2f4f6; }
+        html.dark #pin-screen .tp-key { color: #f2f4f6; }
+        @media (prefers-reduced-motion: reduce) { #pin-screen, #pin-screen.open { transition: none; } #pin-screen .tp-dot { transition: none; } }
+    </style>
 </head>
 <body>
 
@@ -1844,49 +1869,30 @@
         </div>
     </div>
 
-    <div id="modal-admin-pin" class="hidden fixed inset-0 z-[700] bg-black/70 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-xs p-6 shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-base text-zinc-900">관리자 인증</h3>
-                <button onclick="cancelAdminPinPrompt()" class="text-zinc-400 hover:text-zinc-600 p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
+    <div id="pin-screen" role="dialog" aria-modal="true" aria-labelledby="pin-screen-title" aria-hidden="true">
+        <div class="tp-inner">
+            <div class="tp-top">
+                <button type="button" class="tp-close" onclick="cancelPinScreen()" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <p class="text-xs text-zinc-500 mb-4">민감한 작업을 실행하려면 관리자 PIN을 다시 입력해 주세요.</p>
-            <div class="relative mb-4">
-                <input type="password" id="admin-pin-input" maxlength="4" placeholder="관리자 PIN 4자리"
-                    class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 pr-10 text-sm font-mono tracking-widest text-center focus:outline-none focus:border-zinc-900"
-                    onkeydown="if(event.key==='Enter'){submitAdminPinPrompt();}">
-                <button type="button" onclick="togglePinVisibility('admin-pin-input', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
-                    <i class="fa-regular fa-eye text-sm"></i>
-                </button>
+            <h2 id="pin-screen-title" class="tp-title">PIN을 입력해 주세요</h2>
+            <p id="pin-screen-desc" class="tp-desc"></p>
+            <div id="pin-screen-dots" class="tp-dots" role="status" aria-live="polite" aria-label="0자리 입력됨">
+                <span class="tp-dot"></span><span class="tp-dot"></span><span class="tp-dot"></span><span class="tp-dot"></span>
             </div>
-            <button onclick="submitAdminPinPrompt()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md">
-                확인
-            </button>
-        </div>
-    </div>
-
-    <div id="modal-user-pin" class="hidden fixed inset-0 z-[700] bg-black/70 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-xs p-6 shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-base text-zinc-900">본인 인증</h3>
-                <button onclick="cancelUserPinPrompt()" class="text-zinc-400 hover:text-zinc-600 p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
+            <div class="tp-pad">
+                <button type="button" class="tp-key" onclick="pinScreenPress('1')">1</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('2')">2</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('3')">3</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('4')">4</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('5')">5</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('6')">6</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('7')">7</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('8')">8</button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('9')">9</button>
+                <button type="button" class="tp-key tp-ghost" tabindex="-1" aria-hidden="true"></button>
+                <button type="button" class="tp-key" onclick="pinScreenPress('0')">0</button>
+                <button type="button" class="tp-key" onclick="pinScreenBack()" aria-label="한 글자 지우기"><i class="fa-solid fa-delete-left"></i></button>
             </div>
-            <p class="text-xs text-zinc-500 mb-4">계속하려면 로그인 PIN을 다시 입력해 주세요.</p>
-            <div class="relative mb-4">
-                <input type="password" id="user-pin-input" maxlength="4" placeholder="PIN 4자리"
-                    class="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 pr-10 text-sm font-mono tracking-widest text-center focus:outline-none focus:border-zinc-900"
-                    onkeydown="if(event.key==='Enter'){submitUserPinPrompt();}">
-                <button type="button" onclick="togglePinVisibility('user-pin-input', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
-                    <i class="fa-regular fa-eye text-sm"></i>
-                </button>
-            </div>
-            <button onclick="submitUserPinPrompt()" class="w-full bg-zinc-900 hover:bg-black text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md">
-                확인
-            </button>
         </div>
     </div>
 

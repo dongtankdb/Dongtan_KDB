@@ -3055,7 +3055,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         async function adminToggleProductHidden(productId, hidden) {
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: hidden ? '상품을 숨겨요' : '상품을 다시 노출해요' });
             if (!adminPin) return;
             const { error } = await adminRpc('set_product_hidden', {
                 p_admin_pin: adminPin,
@@ -4728,74 +4728,119 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
-        let _adminPinResolve = null;
+        let _pinScreenResolve = null;
+        let _pinScreenValue = '';
+        let _pinScreenBusy = false;
 
-        function promptAdminPin() {
+        function renderPinScreenDots() {
+            const dots = document.querySelectorAll('#pin-screen-dots .tp-dot');
+            dots.forEach((d, i) => d.classList.toggle('on', i < _pinScreenValue.length));
+            const wrap = document.getElementById('pin-screen-dots');
+            if (wrap) wrap.setAttribute('aria-label', _pinScreenValue.length + '자리 입력됨');
+        }
+
+        function pinScreenKeydown(e) {
+            if (!_pinScreenResolve) return;
+            if (e.key && e.key.length === 1 && e.key >= '0' && e.key <= '9') {
+                pinScreenPress(e.key);
+            } else if (e.key === 'Backspace') {
+                pinScreenBack();
+            } else if (e.key === 'Escape') {
+                cancelPinScreen();
+            } else {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function openPinScreen(opts) {
+            const o = opts || {};
+            if (_pinScreenResolve) {
+                const prev = _pinScreenResolve;
+                _pinScreenResolve = null;
+                prev(null);
+            }
             return new Promise((resolve) => {
-                _adminPinResolve = resolve;
-                const input = document.getElementById('admin-pin-input');
-                if (input) input.value = '';
-                const modal = document.getElementById('modal-admin-pin');
-                if (modal) modal.classList.remove('hidden');
-                setTimeout(() => { if (input) input.focus(); }, 150);
+                const el = document.getElementById('pin-screen');
+                if (!el) {
+                    resolve(null);
+                    return;
+                }
+                _pinScreenResolve = resolve;
+                _pinScreenValue = '';
+                _pinScreenBusy = false;
+
+                const titleEl = document.getElementById('pin-screen-title');
+                const descEl = document.getElementById('pin-screen-desc');
+                if (titleEl) titleEl.innerText = o.title || 'PIN을 입력해 주세요';
+                if (descEl) descEl.innerText = o.desc || '';
+                renderPinScreenDots();
+
+                el.setAttribute('aria-hidden', 'false');
+                el.classList.add('open');
+                document.addEventListener('keydown', pinScreenKeydown, true);
             });
         }
 
-        function submitAdminPinPrompt() {
-            const input = document.getElementById('admin-pin-input');
-            const pin = input ? input.value.trim() : '';
-            if (!pin || pin.length !== 4) {
-                showToast('4자리 PIN을 입력해 주세요.');
-                return;
+        function closePinScreen() {
+            const el = document.getElementById('pin-screen');
+            if (el) {
+                el.classList.remove('open');
+                el.setAttribute('aria-hidden', 'true');
             }
-            const modal = document.getElementById('modal-admin-pin');
-            if (modal) modal.classList.add('hidden');
-            const resolve = _adminPinResolve;
-            _adminPinResolve = null;
+            document.removeEventListener('keydown', pinScreenKeydown, true);
+            _pinScreenValue = '';
+            _pinScreenBusy = false;
+            renderPinScreenDots();
+        }
+
+        function pinScreenPress(digit) {
+            if (_pinScreenBusy || !_pinScreenResolve || _pinScreenValue.length >= 4) return;
+            _pinScreenValue += digit;
+            try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) {}
+            renderPinScreenDots();
+            if (_pinScreenValue.length === 4) {
+                _pinScreenBusy = true;
+                setTimeout(finishPinScreen, 140);
+            }
+        }
+
+        function pinScreenBack() {
+            if (_pinScreenBusy || !_pinScreenResolve) return;
+            _pinScreenValue = _pinScreenValue.slice(0, -1);
+            renderPinScreenDots();
+        }
+
+        function finishPinScreen() {
+            const pin = _pinScreenValue;
+            const resolve = _pinScreenResolve;
+            _pinScreenResolve = null;
+            closePinScreen();
             if (resolve) resolve(pin);
         }
 
-        function cancelAdminPinPrompt() {
-            const modal = document.getElementById('modal-admin-pin');
-            if (modal) modal.classList.add('hidden');
-            const resolve = _adminPinResolve;
-            _adminPinResolve = null;
+        function cancelPinScreen() {
+            const resolve = _pinScreenResolve;
+            _pinScreenResolve = null;
+            closePinScreen();
             if (resolve) resolve(null);
         }
 
-        let _userPinResolve = null;
-
-        function promptUserPin() {
-            return new Promise((resolve) => {
-                _userPinResolve = resolve;
-                const input = document.getElementById('user-pin-input');
-                if (input) input.value = '';
-                const modal = document.getElementById('modal-user-pin');
-                if (modal) modal.classList.remove('hidden');
-                setTimeout(() => { if (input) input.focus(); }, 150);
+        function promptAdminPin(opts) {
+            const o = opts || {};
+            return openPinScreen({
+                title: o.title || '관리자 PIN을 입력해 주세요',
+                desc: o.desc || '민감한 작업을 진행하려면 한 번 더 확인해요'
             });
         }
 
-        function submitUserPinPrompt() {
-            const input = document.getElementById('user-pin-input');
-            const pin = input ? input.value.trim() : '';
-            if (!pin || pin.length !== 4) {
-                showToast('4자리 PIN을 입력해 주세요.');
-                return;
-            }
-            const modal = document.getElementById('modal-user-pin');
-            if (modal) modal.classList.add('hidden');
-            const resolve = _userPinResolve;
-            _userPinResolve = null;
-            if (resolve) resolve(pin);
-        }
-
-        function cancelUserPinPrompt() {
-            const modal = document.getElementById('modal-user-pin');
-            if (modal) modal.classList.add('hidden');
-            const resolve = _userPinResolve;
-            _userPinResolve = null;
-            if (resolve) resolve(null);
+        function promptUserPin(opts) {
+            const o = opts || {};
+            return openPinScreen({
+                title: o.title || 'PIN을 입력해 주세요',
+                desc: o.desc || '계속하려면 로그인 PIN을 한 번 더 확인해요'
+            });
         }
 
 
@@ -4866,7 +4911,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 : '루루봇 출금 기능을 중지할까요?\n모든 회원의 루루봇 출금이 즉시 차단됩니다.');
             if (!ok) return;
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: next ? '루루봇 출금을 다시 가동해요' : '루루봇 출금을 중지해요' });
             if (!adminPin) return;
 
             isTogglingBotWithdraw = true;
@@ -4981,7 +5026,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (!okFee) return;
             }
 
-            const pin = await promptUserPin();
+            const pin = await promptUserPin({ desc: '루루봇으로 ' + formatNumber(amount) + '원을 ' + (direction === 'deposit' ? '충전' : '출금') + '해요' });
             if (!pin) return;
 
             const btnId = direction === 'deposit' ? 'bot-deposit-btn' : 'bot-withdraw-btn';
@@ -5178,7 +5223,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: decision === 'approved' ? '충전 요청을 승인해요' : '충전 요청을 거절해요' });
             if (!adminPin) return;
 
             try {
@@ -5261,7 +5306,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: decision === 'approved' ? '가맹점을 승인해요' : '가맹점을 거절해요' });
             if (!adminPin) return;
 
             let wasPending = false;
@@ -5588,7 +5633,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: newFrozenState ? '계좌를 정지해요' : '계좌 정지를 해제해요' });
             if (!adminPin) return;
 
             try {
@@ -5624,7 +5669,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const confirmed = window.confirm('\'' + alias + '\' 회원의 PIN을 0000으로 초기화할까요?\n초기화 후 회원에게 로그인해서 PIN을 바로 바꾸도록 안내해 주세요.');
             if (!confirmed) return;
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: "'" + alias + "' 회원의 PIN을 0000으로 초기화해요" });
             if (!adminPin) return;
 
             try {
@@ -5697,7 +5742,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 : '루루봇 충전 기능을 중지할까요?\n모든 회원의 루루봇 충전이 즉시 차단됩니다.');
             if (!ok) return;
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: next ? '루루봇 충전을 다시 가동해요' : '루루봇 충전을 중지해요' });
             if (!adminPin) return;
 
             isTogglingBotDeposit = true;
@@ -5747,7 +5792,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const ok = window.confirm(label + '을(를) ' + formatNumber(value) + unit + '(으)로 변경할까요?');
             if (!ok) return;
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: label + '을(를) ' + formatNumber(value) + unit + '(으)로 변경해요' });
             if (!adminPin) return;
 
             try {
@@ -5820,7 +5865,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const ok = window.confirm((target ? "'" + target.alias + "' 회원에게" : '전체 회원에게') + ' 알림을 보낼까요?\n\n제목: ' + title);
             if (!ok) return;
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: (target ? "'" + target.alias + "' 회원" : '전체 회원') + '에게 알림을 보내요' });
             if (!adminPin) return;
 
             try {
@@ -5949,7 +5994,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const ok = window.confirm("'" + alias + "' 회원의 " + label + '을(를) 진행할까요?');
             if (!ok) return;
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: "'" + alias + "' 회원 · " + label });
             if (!adminPin) return;
 
             try {
@@ -6300,7 +6345,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: "'" + alias + "' 회원을 삭제해요" });
             if (!adminPin) return;
 
             try {
@@ -6338,7 +6383,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            const adminPin = await promptAdminPin();
+            const adminPin = await promptAdminPin({ desc: '잔액 ' + formatNumber(amt) + '원을 ' + (sign > 0 ? '지급' : '차감') + '해요' });
             if (!adminPin) return;
 
             let adjustResult;
