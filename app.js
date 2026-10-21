@@ -760,8 +760,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             activePaymentRequest = null;
         }
 
+        let _approvingPayment = false;
         async function approvePaymentRequest() {
-            if (!activePaymentRequest) return;
+            if (!activePaymentRequest || _approvingPayment) return;
             const req = activePaymentRequest;
 
             const user = getCurrentUser();
@@ -776,6 +777,15 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 showToast('정지된 계좌라 결제를 승인할 수 없습니다.');
                 return;
             }
+
+            _approvingPayment = true;
+            let stepOkPay = false;
+            try {
+                stepOkPay = await requirePinStepUp({ desc: req.merchant_name + '에 ' + formatNumber(req.amount) + '원을 결제해요' });
+            } finally {
+                _approvingPayment = false;
+            }
+            if (!stepOkPay) return;
 
             hidePaymentRequestBanner();
             showToast('결제를 승인하는 중입니다...');
@@ -2527,6 +2537,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const accId = document.getElementById('shop-buy-account').value;
             const usePoints = document.getElementById('shop-use-points').checked;
 
+            const stepOkBuy = await requirePinStepUp({ desc: (buy.product.name || '상품') + ' ' + formatNumber(t.paid) + '원을 결제해요' });
+            if (!stepOkBuy) return;
+
             state.shopBuying = true;
             const btn = document.getElementById('shop-buy-btn');
             btn.disabled = true;
@@ -3236,6 +3249,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const activeAcc = getActiveAccount();
             if (!user || !activeAcc) return;
 
+            const stepOkTransfer = await requirePinStepUp({ desc: (match.alias || '받는 분') + ' 님에게 ' + formatNumber(amount) + '원을 이체해요' });
+            if (!stepOkTransfer) return;
+
             const confirmBtn = document.getElementById('transfer-confirm-btn');
             if (confirmBtn) {
                 confirmBtn.disabled = true;
@@ -3754,6 +3770,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
 
             _deletingAccount = true;
+            const stepOkDelete = await requirePinStepUp({ desc: (acc.name || '계좌') + ' 계좌를 삭제해요' });
+            if (!stepOkDelete) {
+                _deletingAccount = false;
+                return;
+            }
             const confirmBtn = document.getElementById('delete-account-confirm-btn');
             if (confirmBtn) {
                 confirmBtn.disabled = true;
@@ -4397,6 +4418,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const targetId = input ? input.value.trim() : '';
             if (!mch || state.currentMerchantRole !== 'owner') return;
             if (!targetId) { showToast('권한을 부여할 디스코드 ID를 입력해 주세요.'); return; }
+            const stepOkAdd = await requirePinStepUp({ desc: "'" + targetId + "' 님에게 가맹점 접근 권한을 줘요" });
+            if (!stepOkAdd) return;
             if (btn) btn.disabled = true;
             const { error } = await authRpc('app_merchant_add_member', { p_merchant_id: mch.id, p_member_discord: targetId });
             if (btn) btn.disabled = false;
@@ -4418,6 +4441,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const mch = getCurrentMerchant();
             if (!mch || state.currentMerchantRole !== 'owner') return;
             if (!window.confirm('이 사용자의 가맹점 접근 권한을 회수할까요?')) return;
+            const stepOkRemove = await requirePinStepUp({ desc: '가맹점 접근 권한을 회수해요' });
+            if (!stepOkRemove) return;
             const { error } = await authRpc('app_merchant_remove_member', { p_merchant_id: mch.id, p_member_user_id: userId });
             if (error) {
                 if (!isInvalidSessionError(error)) { console.error('권한 회수 오류:', error); showToast('권한 회수 중 오류가 발생했습니다.'); }
@@ -4731,6 +4756,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         let _pinScreenResolve = null;
         let _pinScreenValue = '';
         let _pinScreenBusy = false;
+        let _pinScreenKeep = false;
+
+        function isPinScreenOpen() {
+            const el = document.getElementById('pin-screen');
+            return !!(el && el.classList.contains('open'));
+        }
 
         function renderPinScreenDots() {
             const dots = document.querySelectorAll('#pin-screen-dots .tp-dot');
@@ -4740,7 +4771,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function pinScreenKeydown(e) {
-            if (!_pinScreenResolve) return;
+            if (!isPinScreenOpen()) return;
             if (e.key && e.key.length === 1 && e.key >= '0' && e.key <= '9') {
                 pinScreenPress(e.key);
             } else if (e.key === 'Backspace') {
@@ -4770,12 +4801,24 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 _pinScreenResolve = resolve;
                 _pinScreenValue = '';
                 _pinScreenBusy = false;
+                _pinScreenKeep = !!o.keepOpen;
 
                 const titleEl = document.getElementById('pin-screen-title');
                 const descEl = document.getElementById('pin-screen-desc');
                 if (titleEl) titleEl.innerText = o.title || 'PIN을 입력해 주세요';
-                if (descEl) descEl.innerText = o.desc || '';
+                if (descEl) {
+                    descEl.innerText = o.error || o.desc || '';
+                    descEl.classList.toggle('tp-error', !!o.error);
+                }
                 renderPinScreenDots();
+                if (o.error) {
+                    const dotsEl = document.getElementById('pin-screen-dots');
+                    if (dotsEl) {
+                        dotsEl.classList.remove('tp-shake');
+                        void dotsEl.offsetWidth;
+                        dotsEl.classList.add('tp-shake');
+                    }
+                }
 
                 el.setAttribute('aria-hidden', 'false');
                 el.classList.add('open');
@@ -4790,8 +4833,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 el.setAttribute('aria-hidden', 'true');
             }
             document.removeEventListener('keydown', pinScreenKeydown, true);
+            const descEl = document.getElementById('pin-screen-desc');
+            if (descEl) descEl.classList.remove('tp-error');
             _pinScreenValue = '';
             _pinScreenBusy = false;
+            _pinScreenKeep = false;
             renderPinScreenDots();
         }
 
@@ -4816,6 +4862,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const pin = _pinScreenValue;
             const resolve = _pinScreenResolve;
             _pinScreenResolve = null;
+            if (_pinScreenKeep) {
+                if (resolve) resolve(pin);
+                return;
+            }
             closePinScreen();
             if (resolve) resolve(pin);
         }
@@ -4825,6 +4875,58 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             _pinScreenResolve = null;
             closePinScreen();
             if (resolve) resolve(null);
+        }
+
+        async function requirePinStepUp(opts) {
+            const o = opts || {};
+            let errorMsg = '';
+            for (let attempt = 0; attempt < 8; attempt++) {
+                const pin = await openPinScreen({
+                    title: o.title || 'PIN을 입력해 주세요',
+                    desc: o.desc || '계속하려면 로그인 PIN을 한 번 더 확인해요',
+                    error: errorMsg,
+                    keepOpen: true
+                });
+                if (!pin) return false;
+
+                let res = null;
+                try {
+                    res = await authRpc('app_step_up', { p_pin: pin });
+                } catch (err) {
+                    console.error('PIN 재확인 오류:', err);
+                    closePinScreen();
+                    showToast('PIN 확인 중 오류가 발생했습니다.');
+                    return false;
+                }
+
+                if (!isPinScreenOpen()) return false;
+
+                if (res && res.error) {
+                    closePinScreen();
+                    if (!isInvalidSessionError(res.error)) {
+                        console.error('PIN 재확인 오류:', res.error);
+                        showToast('PIN 확인 중 오류가 발생했습니다.');
+                    }
+                    return false;
+                }
+
+                const data = res && res.data;
+                if (data && data.ok) {
+                    closePinScreen();
+                    return true;
+                }
+
+                if (data && data.reason === 'locked') {
+                    closePinScreen();
+                    const secs = Number(data.seconds_remaining) || 0;
+                    showToast('PIN을 여러 번 틀려 잠겼습니다. ' + (secs > 0 ? Math.max(1, Math.ceil(secs / 60)) + '분' : '잠시') + ' 후 다시 시도해 주세요.');
+                    return false;
+                }
+
+                errorMsg = 'PIN이 일치하지 않아요. 다시 입력해 주세요.';
+            }
+            closePinScreen();
+            return false;
         }
 
         function promptAdminPin(opts) {
@@ -6876,6 +6978,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const dayOfWeek = cycle === 'weekly' ? parseInt(document.getElementById('at-day-of-week').value, 10) : null;
             const dayOfMonth = cycle === 'monthly' ? parseInt(document.getElementById('at-day-of-month').value, 10) : null;
             let firstRun = cycle === 'weekly' ? atFirstRunWeekly(dayOfWeek) : atFirstRunMonthly(dayOfMonth);
+
+            const stepOkAuto = await requirePinStepUp({ desc: '자동이체를 등록해요 · ' + (match.alias || '받는 분') + ' 님에게 ' + formatNumber(amount) + '원' });
+            if (!stepOkAuto) {
+                restoreBtn();
+                return;
+            }
 
             try {
                 const { data: createData, error } = await authRpc('app_create_auto_transfer', {

@@ -66,6 +66,9 @@
         #pin-screen .tp-key { height: clamp(56px, 9dvh, 72px); border: 0; background: transparent; color: #191f28; font-size: 26px; font-weight: 600; border-radius: 16px; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: inherit; }
         #pin-screen .tp-key:active { background: #f2f4f6; }
         #pin-screen .tp-key.tp-ghost { visibility: hidden; pointer-events: none; }
+        #pin-screen .tp-desc.tp-error { color: #f04452; font-weight: 600; }
+        #pin-screen .tp-dots.tp-shake { animation: tpShake .35s; }
+        @keyframes tpShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
         html.dark #pin-screen { background: #17171c; color: #f2f4f6; }
         html.dark #pin-screen .tp-close { color: #b0b8c1; }
         html.dark #pin-screen .tp-close:active, html.dark #pin-screen .tp-key:active { background: #26262c; }
@@ -73,7 +76,7 @@
         html.dark #pin-screen .tp-dot { background: #3a3a42; }
         html.dark #pin-screen .tp-dot.on { background: #f2f4f6; }
         html.dark #pin-screen .tp-key { color: #f2f4f6; }
-        @media (prefers-reduced-motion: reduce) { #pin-screen, #pin-screen.open { transition: none; } #pin-screen .tp-dot { transition: none; } }
+        @media (prefers-reduced-motion: reduce) { #pin-screen, #pin-screen.open { transition: none; } #pin-screen .tp-dot { transition: none; } #pin-screen .tp-dots.tp-shake { animation: none; } }
     </style>
 </head>
 <body>
