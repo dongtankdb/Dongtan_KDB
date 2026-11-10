@@ -681,6 +681,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 });
 
                 handlePendingPaymentFromPoll(data.pending_payment);
+                pollRobloxRequest();
 
                 const badge = document.getElementById('notif-badge');
                 const unread = data.unread_count || 0;
@@ -844,6 +845,139 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 showToast('결제 요청을 거절했습니다.');
             } catch (err) {
                 console.error('결제 거절 처리 오류:', err);
+            }
+        }
+
+        let activeRobloxRequest = null;
+        let _robloxPollTick = 0;
+        let _robloxPollBusy = false;
+        let _approvingRoblox = false;
+        const robloxDismissed = new Set();
+        const ROBLOX_TERMINAL_CODES = ['already_processed', 'expired', 'not_found', 'bot_rejected', 'bot_unknown', 'credit_failed', 'user_frozen', 'no_discord'];
+
+        function showRobloxBanner(row) {
+            const banner = document.getElementById('roblox-request-banner');
+            if (!banner) return;
+            document.getElementById('roblox-request-name').innerText = row.requester_name;
+            document.getElementById('roblox-request-amount').innerText = formatNumber(row.amount) + '원';
+            const memoEl = document.getElementById('roblox-request-memo');
+            if (memoEl) {
+                memoEl.innerText = row.memo ? '메모: ' + row.memo : '';
+                memoEl.classList.toggle('hidden', !row.memo);
+            }
+            banner.classList.remove('hidden');
+        }
+
+        function hideRobloxBanner() {
+            const banner = document.getElementById('roblox-request-banner');
+            if (banner) banner.classList.add('hidden');
+            activeRobloxRequest = null;
+        }
+
+        async function pollRobloxRequest() {
+            _robloxPollTick++;
+            if (_robloxPollTick % 2 !== 0 || _robloxPollBusy || _approvingRoblox) return;
+            _robloxPollBusy = true;
+            try {
+                const { data, error } = await authRpc('app_my_roblox_pending');
+                if (error || !data) return;
+                const row = data.request || null;
+                if (!row) {
+                    if (activeRobloxRequest) hideRobloxBanner();
+                    return;
+                }
+                if (robloxDismissed.has(row.id)) return;
+                if (activeRobloxRequest && activeRobloxRequest.id === row.id) return;
+                activeRobloxRequest = row;
+                showRobloxBanner(row);
+            } catch (err) {
+            } finally {
+                _robloxPollBusy = false;
+            }
+        }
+
+        async function readFunctionError(error) {
+            let code = '';
+            let message = '';
+            try {
+                const errBody = await error.context.json();
+                code = (errBody && errBody.error && errBody.error.code) || '';
+                message = (errBody && errBody.error && errBody.error.message) || '';
+            } catch (e) {}
+            return { code: code, message: message };
+        }
+
+        async function approveRobloxRequest() {
+            if (!activeRobloxRequest || _approvingRoblox) return;
+            const req = activeRobloxRequest;
+            const user = getCurrentUser();
+            if (!user || !state.sessionToken) {
+                hideRobloxBanner();
+                return;
+            }
+
+            _approvingRoblox = true;
+            try {
+                const pin = await promptUserPin({ desc: req.requester_name + '에 ' + formatNumber(req.amount) + '원을 루루에서 결제해요' });
+                if (!pin) return;
+
+                showToast('루루에서 결제하는 중입니다...');
+
+                const { data, error } = await sbClient.functions.invoke('roblox-pay', {
+                    body: {
+                        action: 'approve',
+                        user_id: user.id,
+                        token: state.sessionToken,
+                        pin: pin,
+                        request_id: req.id
+                    }
+                });
+
+                if (error) {
+                    console.error('Roblox 결제 승인 오류:', error);
+                    const info = await readFunctionError(error);
+                    showToast(info.message || '결제 처리 중 오류가 발생했습니다.');
+                    if (ROBLOX_TERMINAL_CODES.includes(info.code)) {
+                        robloxDismissed.add(req.id);
+                        hideRobloxBanner();
+                    }
+                    return;
+                }
+
+                if (!data || !data.ok) {
+                    const msg = (data && data.error && data.error.message) || '결제를 처리할 수 없습니다.';
+                    showToast(msg);
+                    return;
+                }
+
+                robloxDismissed.add(req.id);
+                hideRobloxBanner();
+                const receiptNo = data.receipt && data.receipt.receipt_no ? ' (영수증 ' + data.receipt.receipt_no + ')' : '';
+                showToast(formatNumber(req.amount) + '원 결제가 완료되었습니다.' + receiptNo);
+                loadUserFinancialData(user.id).then(renderApp).catch(() => {});
+            } catch (err) {
+                console.error('Roblox 결제 승인 처리 오류:', err);
+                showToast('결제 승인 처리 중 오류가 발생했습니다.');
+            } finally {
+                _approvingRoblox = false;
+            }
+        }
+
+        async function rejectRobloxRequest() {
+            if (!activeRobloxRequest || _approvingRoblox) return;
+            const req = activeRobloxRequest;
+            const user = getCurrentUser();
+            robloxDismissed.add(req.id);
+            hideRobloxBanner();
+            if (!user || !state.sessionToken) return;
+
+            try {
+                await sbClient.functions.invoke('roblox-pay', {
+                    body: { action: 'reject', user_id: user.id, token: state.sessionToken, request_id: req.id }
+                });
+                showToast('결제 요청을 거절했습니다.');
+            } catch (err) {
+                console.error('Roblox 결제 거절 처리 오류:', err);
             }
         }
 
@@ -1927,6 +2061,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             unsubscribeRealtimeUpdates();
             stopPayCodeAutoRefresh();
             hidePaymentRequestBanner();
+            hideRobloxBanner();
+            robloxDismissed.clear();
             const badge = document.getElementById('notif-badge');
             if (badge) badge.classList.add('hidden');
             document.getElementById('auth-screen').classList.remove('hidden-auth');

@@ -98,6 +98,32 @@
 
         <div id="toast-container" class="absolute top-0 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-[380px] pointer-events-none flex flex-col gap-2 pt-3"></div>
 
+        <div id="roblox-request-banner" class="hidden absolute top-0 left-0 right-0 z-[111] p-3">
+            <div class="bg-white rounded-2xl shadow-2xl border border-zinc-200 p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-gamepad text-white text-xs"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-xs font-bold text-zinc-900">로블록스 결제 요청</div>
+                        <div class="text-[10px] text-zinc-400">승인하면 루루에서 바로 결제됩니다</div>
+                    </div>
+                </div>
+                <p class="text-sm text-zinc-700 mb-1">
+                    <span id="roblox-request-name" class="font-bold">-</span> 에서
+                    <span id="roblox-request-amount" class="font-bold text-zinc-900">-</span> 결제를 요청했습니다.
+                </p>
+                <p id="roblox-request-memo" class="hidden text-[11px] text-zinc-400 mb-3"></p>
+                <div class="flex gap-2 mt-3">
+                    <button onclick="rejectRobloxRequest()" class="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl text-xs transition-all">
+                        거절
+                    </button>
+                    <button onclick="approveRobloxRequest()" class="flex-[2] bg-zinc-900 hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md">
+                        승인하고 결제
+                    </button>
+                </div>
+            </div>
+        </div>
         <div id="payment-request-banner" class="hidden absolute top-0 left-0 right-0 z-[110] p-3">
             <div class="bg-white rounded-2xl shadow-2xl border border-zinc-200 p-4">
                 <div class="flex items-center gap-2 mb-2">
