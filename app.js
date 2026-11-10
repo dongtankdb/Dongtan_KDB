@@ -2063,6 +2063,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             hidePaymentRequestBanner();
             hideRobloxBanner();
             robloxDismissed.clear();
+            robloxPayEnabled = false;
             const badge = document.getElementById('notif-badge');
             if (badge) badge.classList.add('hidden');
             document.getElementById('auth-screen').classList.remove('hidden-auth');
@@ -7306,12 +7307,66 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const user = getCurrentUser();
             if (!user) return;
             renderSettings();
+            loadRobloxPaySetting();
             const screen = document.getElementById('settings-screen');
             if (screen) {
                 screen.classList.add('open');
                 screen.setAttribute('aria-hidden', 'false');
                 const scroller = screen.querySelector('.settings-scroll');
                 if (scroller) scroller.scrollTop = 0;
+            }
+        }
+
+        let robloxPayEnabled = false;
+        let robloxPayBusy = false;
+
+        function paintRobloxPayToggle() {
+            const btn = document.getElementById('roblox-pay-toggle');
+            const knob = document.getElementById('roblox-pay-knob');
+            if (!btn || !knob) return;
+            btn.setAttribute('aria-checked', robloxPayEnabled ? 'true' : 'false');
+            btn.style.backgroundColor = robloxPayEnabled ? '#18181b' : '';
+            btn.classList.toggle('bg-zinc-300', !robloxPayEnabled);
+            knob.style.transform = robloxPayEnabled ? 'translateX(20px)' : 'translateX(0)';
+        }
+
+        async function loadRobloxPaySetting() {
+            try {
+                const { data, error } = await authRpc('app_get_roblox_pay_setting');
+                if (error || !data || !data.ok) return;
+                robloxPayEnabled = !!data.enabled;
+            } catch (err) {
+                return;
+            }
+            paintRobloxPayToggle();
+        }
+
+        async function toggleRobloxPaySetting() {
+            if (robloxPayBusy) return;
+            robloxPayBusy = true;
+            try {
+                const next = !robloxPayEnabled;
+                if (next) {
+                    const ok = await requirePinStepUp({
+                        title: '로블록스 결제 허용',
+                        desc: '켜면 로블록스에서 결제 요청을 받을 수 있어요. PIN을 확인해 주세요'
+                    });
+                    if (!ok) return;
+                }
+                const { data, error } = await authRpc('app_set_roblox_pay_setting', { p_enabled: next });
+                if (error || !data || !data.ok) {
+                    if (!(error && isInvalidSessionError(error))) showToast('설정을 저장하지 못했습니다.');
+                    return;
+                }
+                robloxPayEnabled = !!data.enabled;
+                if (!robloxPayEnabled) hideRobloxBanner();
+                paintRobloxPayToggle();
+                showToast(robloxPayEnabled ? '로블록스 결제를 허용했어요.' : '로블록스 결제를 껐어요.');
+            } catch (err) {
+                console.error('로블록스 결제 설정 오류:', err);
+                showToast('설정을 저장하지 못했습니다.');
+            } finally {
+                robloxPayBusy = false;
             }
         }
 

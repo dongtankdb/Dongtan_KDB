@@ -669,6 +669,21 @@
                             </div>
                             <i class="fa-solid fa-chevron-right text-zinc-300 text-xs"></i>
                         </div>
+                        <div class="p-4 flex items-center justify-between gap-3 border-t border-zinc-100">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-9 h-9 rounded-xl bg-zinc-100 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-gamepad text-zinc-500 text-sm"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-xs font-bold text-zinc-800">로블록스 결제 허용</div>
+                                    <div class="text-[11px] text-zinc-400 mt-0.5">끄면 로블록스에서 결제 요청이 오지 않아요</div>
+                                </div>
+                            </div>
+                            <button id="roblox-pay-toggle" type="button" role="switch" aria-checked="false" onclick="toggleRobloxPaySetting()"
+                                class="relative w-11 h-6 rounded-full bg-zinc-300 transition-colors shrink-0">
+                                <span id="roblox-pay-knob" class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"></span>
+                            </button>
+                        </div>
                     </div>
                 </section>
 
