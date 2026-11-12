@@ -883,10 +883,13 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 if (error || !data) return;
                 const row = data.request || null;
                 if (!row) {
-                    if (activeRobloxRequest) hideRobloxBanner();
+                    hideRobloxBanner();
                     return;
                 }
-                if (robloxDismissed.has(row.id)) return;
+                if (robloxDismissed.has(row.id)) {
+                    hideRobloxBanner();
+                    return;
+                }
                 if (activeRobloxRequest && activeRobloxRequest.id === row.id) return;
                 activeRobloxRequest = row;
                 showRobloxBanner(row);
