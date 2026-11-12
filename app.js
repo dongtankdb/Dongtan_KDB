@@ -1799,7 +1799,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function submitPinNow() {
-            if (state.enteredPin.length >= PIN_LEGACY_LENGTH) verifyPinAndLogin();
+            if (state.enteredPin.length === loginPinLength) verifyPinAndLogin();
         }
 
         function backspacePin() {
@@ -5061,7 +5061,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function pinScreenConfirm() {
             if (_pinScreenBusy || !_pinScreenResolve) return;
-            if (_pinScreenValue.length < PIN_LEGACY_LENGTH) return;
+            if (_pinScreenValue.length !== pinScreenLimit()) return;
             _pinScreenBusy = true;
             setTimeout(finishPinScreen, 60);
         }

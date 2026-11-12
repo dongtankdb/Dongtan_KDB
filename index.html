@@ -203,7 +203,6 @@
                         <div class="pin-dot w-4 h-4 rounded-full border-2 border-zinc-600 bg-transparent transition-all"></div>
                         <div class="pin-dot w-4 h-4 rounded-full border-2 border-zinc-600 bg-transparent transition-all"></div>
                     </div>
-                    <button id="auth-pin-confirm" type="button" onclick="submitPinNow()" class="hidden text-xs font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-full -mt-4 mb-6 transition-all">4자리 PIN으로 확인</button>
 
                     <div id="auth-user-selector" class="w-full mb-2"></div>
                     <button onclick="showAccountLookup()" class="text-xs text-zinc-500 hover:text-zinc-300 mb-2">다른 계정으로 로그인</button>
@@ -253,7 +252,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">접속 비밀번호 (PIN 4자리)</label>
+                    <label class="block text-[11px] font-medium text-zinc-400 mb-1">접속 비밀번호 (PIN 6자리)</label>
                     <div class="relative">
                         <input type="password" id="signup-pin" maxlength="6" inputmode="numeric" placeholder="비밀번호 6자리" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 pr-10 text-xs text-white tracking-widest font-mono focus:outline-none focus:border-white">
                         <button type="button" onclick="togglePinVisibility('signup-pin', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
@@ -669,7 +668,7 @@
                                 </div>
                                 <div>
                                     <div class="text-xs font-bold text-zinc-800">PIN 번호 변경</div>
-                                    <div class="text-[11px] text-zinc-400 mt-0.5">로그인·관리자 인증에 쓰는 4자리 번호</div>
+                                    <div class="text-[11px] text-zinc-400 mt-0.5">로그인·관리자 인증에 쓰는 6자리 번호</div>
                                 </div>
                             </div>
                             <i class="fa-solid fa-chevron-right text-zinc-300 text-xs"></i>
@@ -1945,7 +1944,6 @@
             <div id="pin-screen-dots" class="tp-dots" role="status" aria-live="polite" aria-label="0자리 입력됨">
                 <span class="tp-dot"></span><span class="tp-dot"></span><span class="tp-dot"></span><span class="tp-dot"></span><span class="tp-dot"></span><span class="tp-dot"></span>
             </div>
-            <button id="pin-screen-confirm" type="button" onclick="pinScreenConfirm()" class="hidden tp-confirm">4자리 PIN으로 확인</button>
             <div class="tp-pad">
                 <button type="button" class="tp-key" onclick="pinScreenPress('1')">1</button>
                 <button type="button" class="tp-key" onclick="pinScreenPress('2')">2</button>
