@@ -2045,6 +2045,10 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         updateSignupDiscordStatus();
                     } else if (msg.includes('invalid_alias')) {
                         showToast('가명은 20자 이하로, 특수문자(< > \" \' ` \\) 없이 입력해 주세요.');
+                    } else if (msg.includes('weak_pin')) {
+                        showToast('너무 쉬운 PIN입니다. 같은 숫자 반복이나 연속된 숫자는 사용할 수 없어요.');
+                    } else if (msg.includes('discord_too_new')) {
+                        showToast('만든 지 얼마 안 된 디스코드 계정은 아직 가입할 수 없습니다. 관리자에게 문의해 주세요.');
                     } else {
                         console.error('회원가입 오류:', error);
                         showToast('가입 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -7658,6 +7662,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                         showChangePinError('현재 PIN이 일치하지 않습니다.');
                     } else if (msg.includes('same_pin')) {
                         showChangePinError('현재 PIN과 다른 번호를 입력해 주세요.');
+                    } else if (msg.includes('weak_pin')) {
+                        showChangePinError('너무 쉬운 PIN입니다. 같은 숫자 반복이나 연속된 숫자는 사용할 수 없어요.');
                     } else if (msg.includes('invalid_pin')) {
                         showChangePinError('새 PIN은 숫자 6자리로 입력해 주세요.');
                     } else if (error.code === 'PGRST202' || msg.includes('Could not find the function')) {
