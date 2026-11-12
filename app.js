@@ -1752,15 +1752,24 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             }
         }
 
+        const PIN_MAX_LENGTH = 6;
+        const PIN_LEGACY_LENGTH = 4;
+        const PIN_PATTERN = /^(\d{4}|\d{6})$/;
+        let pinUpgradeDismissed = false;
+
         function pressPin(num) {
-            if (state.enteredPin.length < 4) {
+            if (state.enteredPin.length < PIN_MAX_LENGTH) {
                 state.enteredPin += num;
                 updatePinDots();
 
-                if (state.enteredPin.length === 4) {
+                if (state.enteredPin.length === PIN_MAX_LENGTH) {
                     setTimeout(verifyPinAndLogin, 150);
                 }
             }
+        }
+
+        function submitPinNow() {
+            if (state.enteredPin.length >= PIN_LEGACY_LENGTH) verifyPinAndLogin();
         }
 
         function backspacePin() {
@@ -1781,7 +1790,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const isDigit = /^[0-9]$/.test(e.key);
             const isBackspace = e.key === 'Backspace';
-            if (!isDigit && !isBackspace) return;
+            const isEnter = e.key === 'Enter';
+            if (!isDigit && !isBackspace && !isEnter) return;
 
             const isVisible = (el) => !!el && el.getClientRects().length > 0;
 
@@ -1790,6 +1800,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (authScreen && !authScreen.classList.contains('hidden-auth') && isVisible(authPinSection)) {
                 e.preventDefault();
                 if (isDigit) pressPin(e.key);
+                else if (isEnter) submitPinNow();
                 else backspacePin();
                 return;
             }
@@ -1805,6 +1816,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     dot.className = 'pin-dot w-4 h-4 rounded-full border-2 border-zinc-600 bg-transparent transition-all';
                 }
             });
+            const confirmBtn = document.getElementById('auth-pin-confirm');
+            if (confirmBtn) {
+                const len = state.enteredPin.length;
+                confirmBtn.classList.toggle('hidden', !(len >= PIN_LEGACY_LENGTH && len < PIN_MAX_LENGTH));
+            }
         }
 
         async function requestDiscordVerification(userId) {
@@ -1853,7 +1869,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             if (!targetUserId || targetUserId !== state.selectedLoginUserId) return;
 
             const enteredPin = state.enteredPin;
-            if (!/^\d{4}$/.test(enteredPin)) return;
+            if (!PIN_PATTERN.test(enteredPin)) return;
 
             let loginResult;
             try {
@@ -1939,6 +1955,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 openForcedChangePinModal();
             } else {
                 state.forcePinChange = false;
+                if (enteredPin.length === PIN_LEGACY_LENGTH) {
+                    setTimeout(showPinUpgradePrompt, 900);
+                }
             }
             runDueAutoTransfers();
         }
@@ -1959,8 +1978,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 return;
             }
 
-            if (pin.length < 4) {
-                showToast('PIN 비밀번호 4자리를 모두 입력하세요.');
+            if (!/^\d{6}$/.test(pin)) {
+                showToast('PIN 비밀번호는 숫자 6자리로 입력해 주세요.');
                 return;
             }
 
@@ -2067,6 +2086,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             hideRobloxBanner();
             robloxDismissed.clear();
             robloxPayEnabled = false;
+            pinUpgradeDismissed = false;
+            closeModal('modal-pin-upgrade');
             const badge = document.getElementById('notif-badge');
             if (badge) badge.classList.add('hidden');
             document.getElementById('auth-screen').classList.remove('hidden-auth');
@@ -4908,6 +4929,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             dots.forEach((d, i) => d.classList.toggle('on', i < _pinScreenValue.length));
             const wrap = document.getElementById('pin-screen-dots');
             if (wrap) wrap.setAttribute('aria-label', _pinScreenValue.length + '자리 입력됨');
+            const confirmBtn = document.getElementById('pin-screen-confirm');
+            if (confirmBtn) {
+                const len = _pinScreenValue.length;
+                confirmBtn.classList.toggle('hidden', !(len >= PIN_LEGACY_LENGTH && len < PIN_MAX_LENGTH));
+            }
         }
 
         function pinScreenKeydown(e) {
@@ -4916,6 +4942,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 pinScreenPress(e.key);
             } else if (e.key === 'Backspace') {
                 pinScreenBack();
+            } else if (e.key === 'Enter') {
+                pinScreenConfirm();
             } else if (e.key === 'Escape') {
                 cancelPinScreen();
             } else {
@@ -4982,14 +5010,21 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function pinScreenPress(digit) {
-            if (_pinScreenBusy || !_pinScreenResolve || _pinScreenValue.length >= 4) return;
+            if (_pinScreenBusy || !_pinScreenResolve || _pinScreenValue.length >= PIN_MAX_LENGTH) return;
             _pinScreenValue += digit;
             try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) {}
             renderPinScreenDots();
-            if (_pinScreenValue.length === 4) {
+            if (_pinScreenValue.length === PIN_MAX_LENGTH) {
                 _pinScreenBusy = true;
                 setTimeout(finishPinScreen, 140);
             }
+        }
+
+        function pinScreenConfirm() {
+            if (_pinScreenBusy || !_pinScreenResolve) return;
+            if (_pinScreenValue.length < PIN_LEGACY_LENGTH) return;
+            _pinScreenBusy = true;
+            setTimeout(finishPinScreen, 60);
         }
 
         function pinScreenBack() {
@@ -7483,7 +7518,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function sanitizePinInput(el) {
-            el.value = (el.value || '').replace(/\D/g, '').slice(0, 4);
+            el.value = (el.value || '').replace(/\D/g, '').slice(0, PIN_MAX_LENGTH);
             const errEl = document.getElementById('change-pin-error');
             if (errEl) errEl.classList.add('hidden');
         }
@@ -7519,6 +7554,21 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             closeModal('modal-change-pin');
         }
 
+        function showPinUpgradePrompt() {
+            if (pinUpgradeDismissed || state.forcePinChange || !getCurrentUser()) return;
+            openModal('modal-pin-upgrade');
+        }
+
+        function dismissPinUpgradePrompt() {
+            pinUpgradeDismissed = true;
+            closeModal('modal-pin-upgrade');
+        }
+
+        function startPinUpgrade() {
+            closeModal('modal-pin-upgrade');
+            openChangePinModal();
+        }
+
         function openForcedChangePinModal() {
             state.forcePinChange = true;
             openChangePinModal();
@@ -7537,8 +7587,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             const newPin = document.getElementById('change-pin-new').value.trim();
             const confirmPin = document.getElementById('change-pin-confirm').value.trim();
 
-            if (!/^\d{4}$/.test(oldPin)) { showChangePinError('현재 PIN 4자리를 입력해 주세요.'); return; }
-            if (!/^\d{4}$/.test(newPin)) { showChangePinError('새 PIN은 숫자 4자리로 입력해 주세요.'); return; }
+            if (!PIN_PATTERN.test(oldPin)) { showChangePinError('현재 PIN(4자리 또는 6자리)을 입력해 주세요.'); return; }
+            if (!/^\d{6}$/.test(newPin)) { showChangePinError('새 PIN은 숫자 6자리로 입력해 주세요.'); return; }
             if (newPin !== confirmPin) { showChangePinError('새 PIN이 서로 일치하지 않습니다.'); return; }
             if (newPin === oldPin) { showChangePinError('현재 PIN과 다른 번호를 입력해 주세요.'); return; }
 
@@ -7570,7 +7620,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                     } else if (msg.includes('same_pin')) {
                         showChangePinError('현재 PIN과 다른 번호를 입력해 주세요.');
                     } else if (msg.includes('invalid_pin')) {
-                        showChangePinError('새 PIN은 숫자 4자리로 입력해 주세요.');
+                        showChangePinError('새 PIN은 숫자 6자리로 입력해 주세요.');
                     } else if (error.code === 'PGRST202' || msg.includes('Could not find the function')) {
                         console.error('change_user_pin RPC 없음:', error);
                         showChangePinError('서버에 PIN 변경 기능이 아직 설치되지 않았습니다. (change_user_pin SQL 실행 필요)');
