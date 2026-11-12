@@ -1466,6 +1466,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             selector.innerHTML = '';
 
             updatePinDots();
+            loadLoginPinLength(activeUser.id);
         }
 
         function showAccountLookup() {
@@ -1756,13 +1757,42 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         const PIN_LEGACY_LENGTH = 4;
         const PIN_PATTERN = /^(\d{4}|\d{6})$/;
         let pinUpgradeDismissed = false;
+        let loginPinLength = 6;
+        let sessionPinLength = 6;
+        let _loginPinLenFor = null;
+
+        function applyLoginPinLength() {
+            updatePinDots();
+        }
+
+        async function loadLoginPinLength(userId) {
+            if (!userId || _loginPinLenFor === userId) return;
+            _loginPinLenFor = userId;
+            let n = 6;
+            try {
+                const { data, error } = await sbClient.rpc('app_get_pin_length', { p_user_id: userId });
+                if (!error && data && data.ok && (data.length === 4 || data.length === 6)) {
+                    n = data.length;
+                } else {
+                    _loginPinLenFor = null;
+                }
+            } catch (err) {
+                _loginPinLenFor = null;
+            }
+            loginPinLength = n;
+            applyLoginPinLength();
+        }
+
+        function pinScreenLimit() {
+            return sessionPinLength === PIN_LEGACY_LENGTH ? PIN_LEGACY_LENGTH : PIN_MAX_LENGTH;
+        }
 
         function pressPin(num) {
-            if (state.enteredPin.length < PIN_MAX_LENGTH) {
+            if (state.enteredPin.length < loginPinLength) {
                 state.enteredPin += num;
                 updatePinDots();
 
-                if (state.enteredPin.length === PIN_MAX_LENGTH) {
+                if (state.enteredPin.length === loginPinLength) {
                     setTimeout(verifyPinAndLogin, 150);
                 }
             }
@@ -1815,11 +1845,12 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
                 } else {
                     dot.className = 'pin-dot w-4 h-4 rounded-full border-2 border-zinc-600 bg-transparent transition-all';
                 }
+                if (idx >= loginPinLength) dot.classList.add('hidden');
             });
             const confirmBtn = document.getElementById('auth-pin-confirm');
             if (confirmBtn) {
                 const len = state.enteredPin.length;
-                confirmBtn.classList.toggle('hidden', !(len >= PIN_LEGACY_LENGTH && len < PIN_MAX_LENGTH));
+                confirmBtn.classList.toggle('hidden', !(loginPinLength === PIN_MAX_LENGTH && len >= PIN_LEGACY_LENGTH && len < PIN_MAX_LENGTH));
             }
         }
 
@@ -1921,6 +1952,7 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
             const row = loginResult.user;
             state.sessionToken = loginResult.token;
+            sessionPinLength = enteredPin.length;
 
             let localUser = state.users.find(u => u.id === row.id);
             if (!localUser) {
@@ -2087,6 +2119,9 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
             robloxDismissed.clear();
             robloxPayEnabled = false;
             pinUpgradeDismissed = false;
+            sessionPinLength = PIN_MAX_LENGTH;
+            loginPinLength = PIN_MAX_LENGTH;
+            _loginPinLenFor = null;
             closeModal('modal-pin-upgrade');
             const badge = document.getElementById('notif-badge');
             if (badge) badge.classList.add('hidden');
@@ -4926,13 +4961,17 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
         function renderPinScreenDots() {
             const dots = document.querySelectorAll('#pin-screen-dots .tp-dot');
-            dots.forEach((d, i) => d.classList.toggle('on', i < _pinScreenValue.length));
+            const limit = pinScreenLimit();
+            dots.forEach((d, i) => {
+                d.classList.toggle('on', i < _pinScreenValue.length);
+                d.style.display = i >= limit ? 'none' : '';
+            });
             const wrap = document.getElementById('pin-screen-dots');
             if (wrap) wrap.setAttribute('aria-label', _pinScreenValue.length + '자리 입력됨');
             const confirmBtn = document.getElementById('pin-screen-confirm');
             if (confirmBtn) {
                 const len = _pinScreenValue.length;
-                confirmBtn.classList.toggle('hidden', !(len >= PIN_LEGACY_LENGTH && len < PIN_MAX_LENGTH));
+                confirmBtn.classList.toggle('hidden', !(limit === PIN_MAX_LENGTH && len >= PIN_LEGACY_LENGTH && len < PIN_MAX_LENGTH));
             }
         }
 
@@ -5010,11 +5049,11 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
         }
 
         function pinScreenPress(digit) {
-            if (_pinScreenBusy || !_pinScreenResolve || _pinScreenValue.length >= PIN_MAX_LENGTH) return;
+            if (_pinScreenBusy || !_pinScreenResolve || _pinScreenValue.length >= pinScreenLimit()) return;
             _pinScreenValue += digit;
             try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) {}
             renderPinScreenDots();
-            if (_pinScreenValue.length === PIN_MAX_LENGTH) {
+            if (_pinScreenValue.length === pinScreenLimit()) {
                 _pinScreenBusy = true;
                 setTimeout(finishPinScreen, 140);
             }
@@ -7633,6 +7672,8 @@ const SUPABASE_URL = 'https://bbdyylfduesmzwoggced.supabase.co';
 
                 closeModal('modal-change-pin');
                 state.forcePinChange = false;
+                sessionPinLength = PIN_MAX_LENGTH;
+                _loginPinLenFor = null;
                 ['change-pin-old', 'change-pin-new', 'change-pin-confirm'].forEach(id => {
                     const el = document.getElementById(id); if (el) el.value = '';
                 });
